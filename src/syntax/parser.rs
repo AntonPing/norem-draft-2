@@ -2,6 +2,7 @@
 
 use super::lexer::{self, Span, Token, TokenSpan};
 use crate::syntax::ast::*;
+use crate::utils::ident::Ident;
 
 pub struct Parser<'src> {
     source: &'src str,
@@ -157,7 +158,7 @@ fn parse_lit_val(par: &mut Parser) -> Option<LitVal> {
 fn parse_ident(par: &mut Parser) -> Option<Ident> {
     match par.peek_token() {
         Token::LowerIdent => {
-            let res = par.peek_slice().to_string();
+            let res = Ident::new(&par.peek_slice());
             par.next_token();
             Some(res)
         }
