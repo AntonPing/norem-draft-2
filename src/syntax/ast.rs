@@ -1,5 +1,6 @@
-type Ident = String;
-type Span = (usize, usize);
+use super::lexer::Span;
+
+pub type Ident = String;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub enum LitVal {
