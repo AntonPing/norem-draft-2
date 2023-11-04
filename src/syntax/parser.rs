@@ -158,7 +158,7 @@ fn parse_lit_val(par: &mut Parser) -> Option<LitVal> {
 fn parse_ident(par: &mut Parser) -> Option<Ident> {
     match par.peek_token() {
         Token::LowerIdent => {
-            let res = Ident::new(&par.peek_slice());
+            let res = Ident::dummy(&par.peek_slice());
             par.next_token();
             Some(res)
         }

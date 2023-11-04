@@ -2,7 +2,8 @@ use super::intern::InternStr;
 use std::fmt;
 use std::sync::atomic;
 
-static mut COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
+// counter zero is reserved for dummy ident
+static mut COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::new(1);
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Ident {
@@ -11,12 +12,21 @@ pub struct Ident {
 }
 
 impl Ident {
-    pub fn new<S: AsRef<str>>(s: &S) -> Ident {
+    pub fn fresh<S: AsRef<str>>(s: &S) -> Ident {
         unsafe {
             let name = InternStr::new(s.as_ref());
             let index = COUNTER.fetch_add(1, atomic::Ordering::Relaxed);
             Ident { name, index }
         }
+    }
+
+    pub fn dummy<S: AsRef<str>>(s: &S) -> Ident {
+        let name = InternStr::new(s.as_ref());
+        Ident { name, index: 0 }
+    }
+
+    pub fn is_dummy(&self) -> bool {
+        self.index == 0
     }
 
     pub fn uniquify(&self) -> Ident {
@@ -55,8 +65,8 @@ fn uniquify_test() {
     // test function `Ident::uniquify`
     let baz: &str = "baz";
     let s1 = InternStr::new(&baz);
-    let x1 = Ident::new(&s1).uniquify();
-    let x2 = Ident::new(&s1).uniquify();
+    let x1 = Ident::fresh(&s1);
+    let x2 = x1.uniquify();
     assert_ne!(x1, x2);
     assert_eq!(x1.name, x2.name);
 }
