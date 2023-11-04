@@ -10,7 +10,7 @@ pub struct Parser<'src> {
     cursor: usize,
 }
 
-type ParseFunc<T> = fn(&mut Parser) -> Option<T>;
+type ParseFunc<'src, T> = fn(&mut Parser<'src>) -> Option<T>;
 
 impl<'src> Parser<'src> {
     pub fn new(input: &'src str) -> Parser<'src> {
@@ -80,7 +80,7 @@ impl<'src> Parser<'src> {
         }
     }
 
-    fn option<T>(&mut self, func: ParseFunc<T>) -> Option<Option<T>> {
+    fn option<T>(&mut self, func: ParseFunc<'src, T>) -> Option<Option<T>> {
         let last = self.cursor;
         match func(self) {
             Some(res) => Some(Some(res)),
@@ -95,7 +95,7 @@ impl<'src> Parser<'src> {
         }
     }
 
-    fn surround<T>(&mut self, left: Token, right: Token, func: ParseFunc<T>) -> Option<T> {
+    fn surround<T>(&mut self, left: Token, right: Token, func: ParseFunc<'src, T>) -> Option<T> {
         self.match_token(left)?;
         let res = func(self)?;
         self.match_token(right)?;
@@ -107,7 +107,7 @@ impl<'src> Parser<'src> {
         left: Token,
         delim: Token,
         right: Token,
-        func: ParseFunc<T>,
+        func: ParseFunc<'src, T>,
     ) -> Option<Vec<T>> {
         let mut vec: Vec<T> = Vec::new();
         self.match_token(left)?;
@@ -127,125 +127,136 @@ impl<'src> Parser<'src> {
         self.match_token(right)?;
         Some(vec)
     }
-}
 
-fn parse_lit_val(par: &mut Parser) -> Option<LitVal> {
-    match par.peek_token() {
-        Token::Int => {
-            let x = par.peek_slice().parse::<i64>().unwrap();
-            par.next_token();
-            Some(LitVal::Int(x))
-        }
-        Token::Float => {
-            let x = par.peek_slice().parse::<f64>().unwrap();
-            par.next_token();
-            Some(LitVal::Float(x))
-        }
-        Token::Bool => {
-            let x = par.peek_slice().parse::<bool>().unwrap();
-            par.next_token();
-            Some(LitVal::Bool(x))
-        }
-        Token::Char => {
-            let x = par.peek_slice().parse::<char>().unwrap();
-            par.next_token();
-            Some(LitVal::Char(x))
-        }
-        _tok => None,
-    }
-}
-
-fn parse_ident(par: &mut Parser) -> Option<Ident> {
-    match par.peek_token() {
-        Token::LowerIdent => {
-            let res = Ident::dummy(&par.peek_slice());
-            par.next_token();
-            Some(res)
-        }
-        _tok => None,
-    }
-}
-
-fn parse_prim_opr(par: &mut Parser) -> Option<PrimOpr> {
-    match par.peek_token() {
-        Token::PrimOpr => {
-            let s = par.peek_slice();
-            par.next_token();
-            match s {
-                "@iadd" => Some(PrimOpr::IAdd),
-                "@isub" => Some(PrimOpr::ISub),
-                "@imul" => Some(PrimOpr::IMul),
-                _s => None,
+    fn parse_lit_val(&mut self) -> Option<LitVal> {
+        match self.peek_token() {
+            Token::Int => {
+                let x = self.peek_slice().parse::<i64>().unwrap();
+                self.next_token();
+                Some(LitVal::Int(x))
             }
-        }
-        _tok => None,
-    }
-}
-
-fn parse_parameters(par: &mut Parser) -> Option<Vec<Ident>> {
-    par.delimited_list(Token::LParen, Token::Comma, Token::RParen, parse_ident)
-}
-
-fn parse_expr_args(par: &mut Parser) -> Option<Vec<Expr>> {
-    par.delimited_list(Token::LParen, Token::Comma, Token::RParen, parse_expr)
-}
-
-fn parse_expr(par: &mut Parser) -> Option<Expr> {
-    let start = par.start_pos();
-    match par.peek_token() {
-        Token::Int | Token::Float | Token::Bool | Token::Char => {
-            let lit = parse_lit_val(par)?;
-            let end = par.end_pos();
-            let span = Span { start, end };
-            Some(Expr::Lit { lit, span })
-        }
-        Token::LowerIdent => {
-            let ident = parse_ident(par)?;
-            let end = par.end_pos();
-            let span = Span { start, end };
-            let var = Expr::Var { ident, span };
-            if par.peek_token() == Token::LParen {
-                // for "f(42)" syntax
-                let func = Box::new(var);
-                let args = parse_expr_args(par)?;
-                let end = par.end_pos();
-                let span = Span { start, end };
-                Some(Expr::App { func, args, span })
-            } else {
-                Some(var)
+            Token::Float => {
+                let x = self.peek_slice().parse::<f64>().unwrap();
+                self.next_token();
+                Some(LitVal::Float(x))
             }
+            Token::Bool => {
+                let x = self.peek_slice().parse::<bool>().unwrap();
+                self.next_token();
+                Some(LitVal::Bool(x))
+            }
+            Token::Char => {
+                let x = self.peek_slice().parse::<char>().unwrap();
+                self.next_token();
+                Some(LitVal::Char(x))
+            }
+            _tok => None,
         }
-        Token::PrimOpr => {
-            let prim = parse_prim_opr(par)?;
-            let args = parse_expr_args(par)?;
-            let end = par.end_pos();
-            let span = Span { start, end };
-            Some(Expr::Prim { prim, args, span })
-        }
-        Token::Fn => {
-            par.match_token(Token::Fn)?;
-            let pars = parse_parameters(par)?;
-            par.match_token(Token::FatArrow)?;
-            let body = Box::new(parse_expr(par)?);
-            let end = par.end_pos();
-            let span = Span { start, end };
-            Some(Expr::Func { pars, body, span })
-        }
-        Token::LParen => {
-            let res = par.surround(Token::LParen, Token::RParen, parse_expr)?;
-            if par.peek_token() == Token::LParen {
-                // for "(fn(x) => x)(42)" syntax
-                let func = Box::new(res);
-                let args = parse_expr_args(par)?;
-                let end = par.end_pos();
-                let span = Span { start, end };
-                Some(Expr::App { func, args, span })
-            } else {
+    }
+
+    fn parse_ident(&mut self) -> Option<Ident> {
+        match self.peek_token() {
+            Token::LowerIdent => {
+                let res = Ident::dummy(&self.peek_slice());
+                self.next_token();
                 Some(res)
             }
+            _tok => None,
         }
-        _tok => None,
     }
+
+    fn parse_prim_opr(&mut self) -> Option<PrimOpr> {
+        match self.peek_token() {
+            Token::PrimOpr => {
+                let s = self.peek_slice();
+                self.next_token();
+                match s {
+                    "@iadd" => Some(PrimOpr::IAdd),
+                    "@isub" => Some(PrimOpr::ISub),
+                    "@imul" => Some(PrimOpr::IMul),
+                    _s => None,
+                }
+            }
+            _tok => None,
+        }
+    }
+
+    fn parse_parameters(&mut self) -> Option<Vec<Ident>> {
+        self.delimited_list(
+            Token::LParen,
+            Token::Comma,
+            Token::RParen,
+            Self::parse_ident,
+        )
+    }
+
+    fn parse_expr_args(&mut self) -> Option<Vec<Expr>> {
+        self.delimited_list(Token::LParen, Token::Comma, Token::RParen, Self::parse_expr)
+    }
+
+    fn parse_expr(&mut self) -> Option<Expr> {
+        let start = self.start_pos();
+        match self.peek_token() {
+            Token::Int | Token::Float | Token::Bool | Token::Char => {
+                let lit = self.parse_lit_val()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Some(Expr::Lit { lit, span })
+            }
+            Token::LowerIdent => {
+                let ident = self.parse_ident()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                let var = Expr::Var { ident, span };
+                if self.peek_token() == Token::LParen {
+                    // for "f(42)" syntax
+                    let func = Box::new(var);
+                    let args = self.parse_expr_args()?;
+                    let end = self.end_pos();
+                    let span = Span { start, end };
+                    Some(Expr::App { func, args, span })
+                } else {
+                    Some(var)
+                }
+            }
+            Token::PrimOpr => {
+                let prim = self.parse_prim_opr()?;
+                let args = self.parse_expr_args()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Some(Expr::Prim { prim, args, span })
+            }
+            Token::Fn => {
+                self.match_token(Token::Fn)?;
+                let pars = self.parse_parameters()?;
+                self.match_token(Token::FatArrow)?;
+                let body = Box::new(self.parse_expr()?);
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Some(Expr::Func { pars, body, span })
+            }
+            Token::LParen => {
+                let res = self.surround(Token::LParen, Token::RParen, Self::parse_expr)?;
+                if self.peek_token() == Token::LParen {
+                    // for "(fn(x) => x)(42)" syntax
+                    let func = Box::new(res);
+                    let args = self.parse_expr_args()?;
+                    let end = self.end_pos();
+                    let span = Span { start, end };
+                    Some(Expr::App { func, args, span })
+                } else {
+                    Some(res)
+                }
+            }
+            _tok => None,
+        }
+    }
+}
+
+pub fn parse_expr<'src>(s: &'src str) -> Option<Expr> {
+    let mut par = Parser::new(s);
+    let res = par.parse_expr();
+    res
 }
 
 #[test]
@@ -261,11 +272,6 @@ fn parser_test() {
 (fn(x) => (@iadd(x,1)))(42)
 "#;
 
-    let mut par = Parser::new(s);
-    let res = parse_expr(&mut par);
-    if let Some(res) = res {
-        println!("{:#?}", res);
-    } else {
-        panic!("parse failed")
-    }
+    let res = parse_expr(s).unwrap();
+    println!("{:#?}", res);
 }
