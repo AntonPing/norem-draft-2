@@ -36,6 +36,7 @@ pub enum PrimOpr {
     IAdd,
     ISub,
     IMul,
+    Move,
 }
 
 impl PrimOpr {
@@ -44,6 +45,7 @@ impl PrimOpr {
             PrimOpr::IAdd => 2,
             PrimOpr::ISub => 2,
             PrimOpr::IMul => 2,
+            PrimOpr::Move => 1,
         }
     }
 }
