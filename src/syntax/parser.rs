@@ -17,7 +17,7 @@ impl<'src> Parser<'src> {
         let tokens = lexer::tokenize(input);
         Parser {
             source: input,
-            tokens: tokens,
+            tokens,
             cursor: 0,
         }
     }
@@ -42,11 +42,11 @@ impl<'src> Parser<'src> {
         &self.tokens[self.cursor].span
     }
 
-    fn peek_span_nth(&self, n: usize) -> Span {
+    fn peek_span_nth(&self, n: usize) -> &Span {
         if self.cursor + n < self.tokens.len() {
-            self.tokens[self.cursor + n].span.clone()
+            &self.tokens[self.cursor + n].span
         } else {
-            self.tokens[self.tokens.len() - 1].span.clone()
+            &self.tokens[self.tokens.len() - 1].span
         }
     }
 
