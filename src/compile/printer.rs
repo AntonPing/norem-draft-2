@@ -23,6 +23,8 @@ impl fmt::Display for PrimOpr {
             PrimOpr::ISub => "@isub".fmt(f),
             PrimOpr::IMul => "@imul".fmt(f),
             PrimOpr::Move => "@move".fmt(f),
+            PrimOpr::Record => "@record".fmt(f),
+            PrimOpr::Select => "@select".fmt(f),
         }
     }
 }

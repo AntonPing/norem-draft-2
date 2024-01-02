@@ -88,6 +88,8 @@ fn prim(input: &str) -> IResult<&str, PrimOpr> {
         value(PrimOpr::ISub, tag("@isub")),
         value(PrimOpr::IMul, tag("@imul")),
         value(PrimOpr::Move, tag("@move")),
+        value(PrimOpr::Record, tag("@record")),
+        value(PrimOpr::Select, tag("@select")),
     ))(input)
 }
 

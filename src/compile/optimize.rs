@@ -85,7 +85,7 @@ impl Optimizer {
                 args,
                 cont,
             } => {
-                assert_eq!(prim.get_arity(), args.len());
+                assert!(prim.get_arity() == None || prim.get_arity() == Some(args.len()));
                 let args: Vec<Atom> = args.into_iter().map(|arg| self.visit_atom(arg)).collect();
                 match (prim, &args[..]) {
                     (PrimOpr::IAdd, [Atom::Int(a), Atom::Int(b)]) => {

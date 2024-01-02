@@ -54,15 +54,19 @@ pub enum PrimOpr {
     ISub,
     IMul,
     Move,
+    Record,
+    Select,
 }
 
 impl PrimOpr {
-    pub fn get_arity(&self) -> usize {
+    pub fn get_arity(&self) -> Option<usize> {
         match self {
-            PrimOpr::IAdd => 2,
-            PrimOpr::ISub => 2,
-            PrimOpr::IMul => 2,
-            PrimOpr::Move => 1,
+            PrimOpr::IAdd => Some(2),
+            PrimOpr::ISub => Some(2),
+            PrimOpr::IMul => Some(2),
+            PrimOpr::Move => Some(1),
+            PrimOpr::Record => None,
+            PrimOpr::Select => Some(2),
         }
     }
 }
