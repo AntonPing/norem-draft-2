@@ -44,13 +44,21 @@ impl Ident {
 
 impl fmt::Debug for Ident {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}_{}", self.name, self.index)
+        if self.is_dummy() {
+            write!(f, "{}", self.name)
+        } else {
+            write!(f, "{}_{}", self.name, self.index)
+        }
     }
 }
 
 impl fmt::Display for Ident {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.name)
+        if self.is_dummy() {
+            write!(f, "{}", self.name)
+        } else {
+            write!(f, "{}_{}", self.name, self.index)
+        }
     }
 }
 
