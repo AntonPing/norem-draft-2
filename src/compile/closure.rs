@@ -13,8 +13,9 @@ impl ClosConv {
             toplevel: Vec::new(),
             freevar: HashSet::new(),
         };
-        let expr = pass.visit_expr(expr);
+        let mut expr = pass.visit_expr(expr);
         assert!(pass.freevar.is_empty());
+        super::rename::Renamer::run(&mut expr);
         (pass.toplevel, expr)
     }
 

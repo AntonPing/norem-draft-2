@@ -175,9 +175,10 @@ fn decl(input: &str) -> IResult<&str, Decl> {
 
 pub fn parse_expr(input: &str) -> Option<Expr> {
     match expr(input) {
-        Ok((input, expr)) => {
+        Ok((input, mut expr)) => {
             let (input, _) = skip_space(input).unwrap();
             if input == "" {
+                super::rename::Renamer::run(&mut expr);
                 Some(expr)
             } else {
                 None
