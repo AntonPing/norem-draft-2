@@ -14,6 +14,13 @@ impl Renamer {
         pass.visit_expr(expr);
     }
 
+    pub fn run_decl(decl: &mut Decl) {
+        let mut pass = Renamer {
+            subst: HashMap::new(),
+        };
+        pass.visit_decl(decl);
+    }
+
     fn enter_scope(&mut self, bind: &mut Ident) -> Option<(Ident, Ident)> {
         let new_bind = bind.uniquify();
         let old = self.subst.insert(*bind, new_bind).map(|v| (*bind, v));

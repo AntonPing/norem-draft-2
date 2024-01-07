@@ -16,6 +16,9 @@ impl ClosConv {
         let mut expr = pass.visit_expr(expr);
         assert!(pass.freevar.is_empty());
         super::rename::Renamer::run(&mut expr);
+        for decl in pass.toplevel.iter_mut() {
+            super::rename::Renamer::run_decl(decl);
+        }
         (pass.toplevel, expr)
     }
 
@@ -44,7 +47,12 @@ impl ClosConv {
                     .map(|decl| self.visit_decl(decl))
                     .collect();
 
-                let frees = self.freevar.clone();
+                let mut frees = self.freevar.clone();
+                decls.iter().for_each(|decl| {
+                    frees.remove(&decl.func);
+                });
+
+                let free_funcs: Vec<Ident> = decls.iter().map(|decl| decl.func).collect();
 
                 // second time, add closure parameter and unpack
                 let decls: Vec<Decl> = decls
@@ -62,6 +70,12 @@ impl ClosConv {
                                 args: vec![Atom::Var(c), Atom::Int(i as i64)],
                                 cont: Box::new(acc),
                             });
+                        let body = free_funcs.iter().fold(body, |acc, func| Expr::Prim {
+                            bind: *func,
+                            prim: PrimOpr::Record,
+                            args: vec![Atom::Var(*func), Atom::Var(c)],
+                            cont: Box::new(acc),
+                        });
 
                         Decl { func, pars, body }
                     })
@@ -150,7 +164,7 @@ impl ClosConv {
 
 #[test]
 #[ignore = "just to see result"]
-fn clos_conv_test() {
+fn clos_conv_test_1() {
     let s = r#"
 decl
     fn f(x) begin
@@ -166,6 +180,63 @@ decl
 in
     let h = f(1);
     let r = h(2);
+    return r;
+end
+"#;
+    let expr = super::parser::parse_expr(s).unwrap();
+    println!("{}\n", expr);
+    let (toplevel, expr) = ClosConv::run(expr);
+    for decl in toplevel {
+        println!("{}\n", decl);
+    }
+    println!("{}\n", expr);
+}
+
+#[test]
+#[ignore = "just to see result"]
+fn clos_conv_test_2() {
+    let s = r#"
+decl
+    fn f(x) begin
+        let y = @iadd(x, 1);
+        return y;
+    end
+    fn g(z) begin
+        let a = f(z);
+        return a;
+    end
+in
+    let r = g(42);
+    return r;
+end
+"#;
+    let expr = super::parser::parse_expr(s).unwrap();
+    println!("{}\n", expr);
+    let (toplevel, expr) = ClosConv::run(expr);
+    for decl in toplevel {
+        println!("{}\n", decl);
+    }
+    println!("{}\n", expr);
+}
+
+#[test]
+#[ignore = "just to see result"]
+fn clos_conv_test_3() {
+    let s = r#"
+decl
+    fn f(x) begin
+        decl
+            fn g(z) begin
+                let a = f(z);
+                return a;
+            end
+        in
+            let y = @iadd(x, 1);
+            return y;
+        end
+    end
+in
+    let r = f(42);
     return r;
 end
 "#;
