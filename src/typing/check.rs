@@ -2,6 +2,7 @@ use crate::syntax::ast::*;
 use crate::typing::unify::{UnifySolver, UnifyType};
 use crate::utils::ident::Ident;
 use std::collections::HashMap;
+use std::ops::Deref;
 
 struct TypeChecker {
     context: HashMap<Ident, UnifyType>,
@@ -88,6 +89,27 @@ impl TypeChecker {
                 )?;
                 Ok(res_ty)
             }
+            Expr::Stmt { stmt, cont } => match stmt.deref() {
+                Stmt::Let {
+                    ident,
+                    typ: ty_anno,
+                    expr,
+                } => {
+                    let ty = self.infer_expr(expr)?;
+                    if let Some(ty_anno) = ty_anno {
+                        self.solver.unify(&ty, &ty_anno.into())?;
+                    }
+                    self.context.insert(*ident, ty);
+                    let res_ty = self.infer_expr(cont)?;
+                    Ok(res_ty)
+                }
+                Stmt::Do { expr } => {
+                    let ty = self.infer_expr(expr)?;
+                    self.solver.unify(&ty, &UnifyType::Lit(LitType::TyUnit))?;
+                    let res_ty = self.infer_expr(cont)?;
+                    Ok(res_ty)
+                }
+            },
         }
     }
 }

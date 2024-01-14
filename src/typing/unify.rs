@@ -1,4 +1,4 @@
-use crate::syntax::ast::LitType;
+use crate::syntax::ast::{LitType, Type};
 use crate::utils::ident::Ident;
 use std::ops::Deref;
 
@@ -8,6 +8,19 @@ pub enum UnifyType {
     Func(Vec<UnifyType>, Box<UnifyType>),
     Var(Ident),
     Cell(usize),
+}
+
+impl From<&Type> for UnifyType {
+    fn from(value: &Type) -> Self {
+        match value {
+            Type::Lit { lit } => UnifyType::Lit(*lit),
+            Type::Func { pars, res } => {
+                let pars = pars.iter().map(|par| par.into()).collect();
+                let res = Box::new(res.deref().into());
+                UnifyType::Func(pars, res)
+            }
+        }
+    }
 }
 
 type UnifyResult = Result<(), String>;

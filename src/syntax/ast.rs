@@ -51,6 +51,12 @@ impl PrimOpr {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub enum Type {
+    Lit { lit: LitType },
+    Func { pars: Vec<Type>, res: Box<Type> },
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum Expr {
     Lit {
         lit: LitVal,
@@ -74,5 +80,21 @@ pub enum Expr {
         func: Box<Expr>,
         args: Vec<Expr>,
         span: Span,
+    },
+    Stmt {
+        stmt: Box<Stmt>,
+        cont: Box<Expr>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Stmt {
+    Let {
+        ident: Ident,
+        typ: Option<Type>,
+        expr: Expr,
+    },
+    Do {
+        expr: Expr,
     },
 }

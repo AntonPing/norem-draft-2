@@ -1,6 +1,7 @@
-use crate::syntax::ast::Expr;
+use super::ast::{Expr, Stmt};
 use crate::utils::ident::Ident;
 use std::collections::HashMap;
+use std::ops::DerefMut;
 
 struct Renamer {
     context: HashMap<Ident, Ident>,
@@ -67,6 +68,28 @@ impl Renamer {
                 }
                 Ok(())
             }
+            Expr::Stmt { stmt, cont } => match stmt.deref_mut() {
+                Stmt::Let {
+                    ident,
+                    typ: _,
+                    expr,
+                } => {
+                    self.rename_expr(expr)?;
+                    let new = ident.uniquify();
+                    let old = self.context.insert(*ident, new);
+                    self.rename_expr(cont)?;
+                    if let Some(old) = old {
+                        self.context.insert(*ident, old);
+                    }
+
+                    Ok(())
+                }
+                Stmt::Do { expr } => {
+                    self.rename_expr(expr)?;
+                    self.rename_expr(cont)?;
+                    Ok(())
+                }
+            },
         }
     }
 }
