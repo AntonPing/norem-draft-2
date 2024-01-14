@@ -68,11 +68,16 @@ impl Renamer {
                 }
                 Ok(())
             }
-            Expr::Stmt { stmt, cont } => match stmt.deref_mut() {
+            Expr::Stmt {
+                stmt,
+                cont,
+                span: _,
+            } => match stmt.deref_mut() {
                 Stmt::Let {
                     ident,
                     typ: _,
                     expr,
+                    span: _,
                 } => {
                     self.rename_expr(expr)?;
                     let new = ident.uniquify();
@@ -84,7 +89,7 @@ impl Renamer {
 
                     Ok(())
                 }
-                Stmt::Do { expr } => {
+                Stmt::Do { expr, span: _ } => {
                     self.rename_expr(expr)?;
                     self.rename_expr(cont)?;
                     Ok(())

@@ -89,11 +89,16 @@ impl TypeChecker {
                 )?;
                 Ok(res_ty)
             }
-            Expr::Stmt { stmt, cont } => match stmt.deref() {
+            Expr::Stmt {
+                stmt,
+                cont,
+                span: _,
+            } => match stmt.deref() {
                 Stmt::Let {
                     ident,
                     typ: ty_anno,
                     expr,
+                    span: _,
                 } => {
                     let ty = self.infer_expr(expr)?;
                     if let Some(ty_anno) = ty_anno {
@@ -103,7 +108,7 @@ impl TypeChecker {
                     let res_ty = self.infer_expr(cont)?;
                     Ok(res_ty)
                 }
-                Stmt::Do { expr } => {
+                Stmt::Do { expr, span: _ } => {
                     let ty = self.infer_expr(expr)?;
                     self.solver.unify(&ty, &UnifyType::Lit(LitType::TyUnit))?;
                     let res_ty = self.infer_expr(cont)?;

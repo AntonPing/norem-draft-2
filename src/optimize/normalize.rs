@@ -86,7 +86,11 @@ impl Normalizer {
                         |rest, (bind, arg)| self.normalize(arg, bind, rest),
                     )
             }
-            ast::Expr::Stmt { stmt, cont } => {
+            ast::Expr::Stmt {
+                stmt,
+                cont,
+                span: _,
+            } => {
                 // normalize(let x = e1; e2, hole, ctx) =
                 // normalize(e1, x, normalize(e2, hole, ctx)
                 let cont = self.normalize(cont, bind, rest);
@@ -95,8 +99,9 @@ impl Normalizer {
                         ident,
                         typ: _,
                         expr,
+                        span: _,
                     } => self.normalize(expr, ident, cont),
-                    ast::Stmt::Do { expr } => {
+                    ast::Stmt::Do { expr, span: _ } => {
                         let ident = Ident::fresh(&"_");
                         self.normalize(expr, &ident, cont)
                     }

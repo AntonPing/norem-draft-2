@@ -84,6 +84,7 @@ pub enum Expr {
     Stmt {
         stmt: Box<Stmt>,
         cont: Box<Expr>,
+        span: Span,
     },
 }
 
@@ -93,8 +94,10 @@ pub enum Stmt {
         ident: Ident,
         typ: Option<Type>,
         expr: Expr,
+        span: Span,
     },
     Do {
         expr: Expr,
+        span: Span,
     },
 }
