@@ -235,6 +235,58 @@ impl<'src> Parser<'src> {
                 let span = Span { start, end };
                 Some(Expr::Func { pars, body, span })
             }
+            Token::Begin => {
+                self.match_token(Token::Begin)?;
+                let mut vec: Vec<Stmt> = Vec::new();
+                loop {
+                    if self.peek_token() == Token::End {
+                        self.match_token(Token::End);
+                        let end = self.end_pos();
+                        let res = vec.into_iter().rev().fold(
+                            Expr::Lit {
+                                lit: LitVal::Unit,
+                                span: Span { start: end, end },
+                            },
+                            |cont, stmt| {
+                                let span = Span {
+                                    start: stmt.get_span().start,
+                                    end: cont.get_span().end,
+                                };
+                                Expr::Stmt {
+                                    stmt: Box::new(stmt),
+                                    cont: Box::new(cont),
+                                    span,
+                                }
+                            },
+                        );
+                        return Some(res);
+                    } else {
+                        let stmt = self.parse_stmt()?;
+                        match (stmt, self.peek_token()) {
+                            (stmt, Token::Semi) => {
+                                vec.push(stmt);
+                                self.match_token(Token::Semi)?;
+                                continue;
+                            }
+                            (Stmt::Do { expr, span: _ }, Token::End) => {
+                                let res = vec.into_iter().rev().fold(expr, |cont, stmt| {
+                                    let span = Span {
+                                        start: stmt.get_span().start,
+                                        end: cont.get_span().end,
+                                    };
+                                    Expr::Stmt {
+                                        stmt: Box::new(stmt),
+                                        cont: Box::new(cont),
+                                        span,
+                                    }
+                                });
+                                return Some(res);
+                            }
+                            _ => return None,
+                        }
+                    }
+                }
+            }
             Token::LParen => {
                 let res = self.surround(Token::LParen, Token::RParen, Self::parse_expr)?;
                 if self.peek_token() == Token::LParen {
@@ -246,6 +298,83 @@ impl<'src> Parser<'src> {
                     Some(Expr::App { func, args, span })
                 } else {
                     Some(res)
+                }
+            }
+            _tok => None,
+        }
+    }
+
+    fn parse_stmt(&mut self) -> Option<Stmt> {
+        let start = self.start_pos();
+        match self.peek_token() {
+            Token::Let => {
+                self.match_token(Token::Let);
+                let ident = self.parse_ident()?;
+                let typ: Option<Type> = self.option(|par| {
+                    par.match_token(Token::Colon)?;
+                    par.parse_type()
+                })?;
+                self.match_token(Token::Equal);
+                let expr = self.parse_expr()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Some(Stmt::Let {
+                    ident,
+                    typ,
+                    expr,
+                    span,
+                })
+            }
+            _tok => {
+                let expr = self.parse_expr()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Some(Stmt::Do { expr, span })
+            }
+        }
+    }
+
+    fn parse_type(&mut self) -> Option<Type> {
+        match self.peek_token() {
+            Token::TyInt => {
+                self.match_token(Token::TyInt)?;
+                Some(Type::Lit {
+                    lit: LitType::TyInt,
+                })
+            }
+            Token::TyFloat => {
+                self.match_token(Token::TyFloat)?;
+                Some(Type::Lit {
+                    lit: LitType::TyFloat,
+                })
+            }
+            Token::TyBool => {
+                self.match_token(Token::TyBool)?;
+                Some(Type::Lit {
+                    lit: LitType::TyBool,
+                })
+            }
+            Token::TyChar => {
+                self.match_token(Token::TyChar)?;
+                Some(Type::Lit {
+                    lit: LitType::TyChar,
+                })
+            }
+            Token::Fn => {
+                self.match_token(Token::Fn)?;
+                let pars =
+                    self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+                        par.parse_type()
+                    })?;
+                if self.peek_token() == Token::Arrow {
+                    self.match_token(Token::Arrow)?;
+                    let res = Box::new(self.parse_type()?);
+                    Some(Type::Func { pars, res })
+                } else {
+                    let res = Box::new(Type::Lit {
+                        lit: LitType::TyUnit,
+                    });
+                    Some(Type::Func { pars, res })
                 }
             }
             _tok => None,
@@ -269,9 +398,12 @@ fn parser_test() {
         test block comment
     */
 */
-(fn(x) => (@iadd(x,1)))(42)
+begin
+    let f = fn(x) => @iadd(x,1);
+    let res = f(42);
+    res
+end
 "#;
-
     let res = parse_expr(s).unwrap();
     println!("{:#?}", res);
 }

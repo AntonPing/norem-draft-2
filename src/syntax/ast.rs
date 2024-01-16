@@ -101,3 +101,25 @@ pub enum Stmt {
         span: Span,
     },
 }
+
+impl Expr {
+    pub fn get_span(&self) -> &Span {
+        match self {
+            Expr::Lit { span, .. } => span,
+            Expr::Var { span, .. } => span,
+            Expr::Prim { span, .. } => span,
+            Expr::Func { span, .. } => span,
+            Expr::App { span, .. } => span,
+            Expr::Stmt { span, .. } => span,
+        }
+    }
+}
+
+impl Stmt {
+    pub fn get_span(&self) -> &Span {
+        match self {
+            Stmt::Let { span, .. } => span,
+            Stmt::Do { span, .. } => span,
+        }
+    }
+}
