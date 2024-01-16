@@ -102,6 +102,18 @@ pub enum Stmt {
     },
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum Decl {
+    Func {
+        func: Ident,
+        pars: Vec<(Ident, Type)>,
+        res: Type,
+        span1: Span,
+        body: Expr,
+        span2: Span,
+    },
+}
+
 impl Expr {
     pub fn get_span(&self) -> &Span {
         match self {
@@ -120,6 +132,14 @@ impl Stmt {
         match self {
             Stmt::Let { span, .. } => span,
             Stmt::Do { span, .. } => span,
+        }
+    }
+}
+
+impl Decl {
+    pub fn get_span(&self) -> &Span {
+        match self {
+            Decl::Func { span2, .. } => span2,
         }
     }
 }

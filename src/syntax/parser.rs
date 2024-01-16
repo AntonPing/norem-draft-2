@@ -380,6 +380,44 @@ impl<'src> Parser<'src> {
             _tok => None,
         }
     }
+
+    fn parse_decl(&mut self) -> Option<Decl> {
+        let start = self.start_pos();
+        match self.peek_token() {
+            Token::Function => {
+                self.match_token(Token::Function)?;
+                let func = self.parse_ident()?;
+                let pars =
+                    self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+                        let ident = par.parse_ident()?;
+                        par.match_token(Token::Colon)?;
+                        let typ = par.parse_type()?;
+                        Some((ident, typ))
+                    })?;
+                let res = self
+                    .option(|par| {
+                        par.match_token(Token::Arrow)?;
+                        par.parse_type()
+                    })?
+                    .unwrap_or(Type::Lit {
+                        lit: LitType::TyUnit,
+                    });
+                let end1 = self.end_pos();
+                let span1 = Span { start, end: end1 };
+                let body = self.parse_block()?;
+                let end2 = self.end_pos();
+                let span2 = Span { start, end: end2 };
+                Some(Decl::Func {
+                    func,
+                    pars,
+                    span1,
+                    body,
+                    span2,
+                })
+            }
+            _tok => None,
+        }
+    }
 }
 
 pub fn parse_expr<'src>(s: &'src str) -> Option<Expr> {

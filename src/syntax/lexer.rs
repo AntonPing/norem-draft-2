@@ -47,6 +47,10 @@ pub enum Token {
     Begin,
     #[token("end")]
     End,
+    #[token("function")]
+    Function,
+    #[token("datatype")]
+    Datatype,
     #[token("_")]
     Wild,
     #[token("+")]
