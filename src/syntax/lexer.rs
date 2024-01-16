@@ -51,6 +51,8 @@ pub enum Token {
     Function,
     #[token("datatype")]
     Datatype,
+    #[token("module")]
+    Module,
     #[token("_")]
     Wild,
     #[token("+")]

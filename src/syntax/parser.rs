@@ -235,58 +235,7 @@ impl<'src> Parser<'src> {
                 let span = Span { start, end };
                 Some(Expr::Func { pars, body, span })
             }
-            Token::Begin => {
-                self.match_token(Token::Begin)?;
-                let mut vec: Vec<Stmt> = Vec::new();
-                loop {
-                    if self.peek_token() == Token::End {
-                        self.match_token(Token::End);
-                        let end = self.end_pos();
-                        let res = vec.into_iter().rev().fold(
-                            Expr::Lit {
-                                lit: LitVal::Unit,
-                                span: Span { start: end, end },
-                            },
-                            |cont, stmt| {
-                                let span = Span {
-                                    start: stmt.get_span().start,
-                                    end: cont.get_span().end,
-                                };
-                                Expr::Stmt {
-                                    stmt: Box::new(stmt),
-                                    cont: Box::new(cont),
-                                    span,
-                                }
-                            },
-                        );
-                        return Some(res);
-                    } else {
-                        let stmt = self.parse_stmt()?;
-                        match (stmt, self.peek_token()) {
-                            (stmt, Token::Semi) => {
-                                vec.push(stmt);
-                                self.match_token(Token::Semi)?;
-                                continue;
-                            }
-                            (Stmt::Do { expr, span: _ }, Token::End) => {
-                                let res = vec.into_iter().rev().fold(expr, |cont, stmt| {
-                                    let span = Span {
-                                        start: stmt.get_span().start,
-                                        end: cont.get_span().end,
-                                    };
-                                    Expr::Stmt {
-                                        stmt: Box::new(stmt),
-                                        cont: Box::new(cont),
-                                        span,
-                                    }
-                                });
-                                return Some(res);
-                            }
-                            _ => return None,
-                        }
-                    }
-                }
-            }
+            Token::Begin => self.parse_block(),
             Token::LParen => {
                 let res = self.surround(Token::LParen, Token::RParen, Self::parse_expr)?;
                 if self.peek_token() == Token::LParen {
@@ -330,6 +279,59 @@ impl<'src> Parser<'src> {
                 let end = self.end_pos();
                 let span = Span { start, end };
                 Some(Stmt::Do { expr, span })
+            }
+        }
+    }
+
+    fn parse_block(&mut self) -> Option<Expr> {
+        self.match_token(Token::Begin)?;
+        let mut vec: Vec<Stmt> = Vec::new();
+        loop {
+            if self.peek_token() == Token::End {
+                self.match_token(Token::End);
+                let end = self.end_pos();
+                let res = vec.into_iter().rev().fold(
+                    Expr::Lit {
+                        lit: LitVal::Unit,
+                        span: Span { start: end, end },
+                    },
+                    |cont, stmt| {
+                        let span = Span {
+                            start: stmt.get_span().start,
+                            end: cont.get_span().end,
+                        };
+                        Expr::Stmt {
+                            stmt: Box::new(stmt),
+                            cont: Box::new(cont),
+                            span,
+                        }
+                    },
+                );
+                return Some(res);
+            } else {
+                let stmt = self.parse_stmt()?;
+                match (stmt, self.peek_token()) {
+                    (stmt, Token::Semi) => {
+                        vec.push(stmt);
+                        self.match_token(Token::Semi)?;
+                        continue;
+                    }
+                    (Stmt::Do { expr, span: _ }, Token::End) => {
+                        let res = vec.into_iter().rev().fold(expr, |cont, stmt| {
+                            let span = Span {
+                                start: stmt.get_span().start,
+                                end: cont.get_span().end,
+                            };
+                            Expr::Stmt {
+                                stmt: Box::new(stmt),
+                                cont: Box::new(cont),
+                                span,
+                            }
+                        });
+                        return Some(res);
+                    }
+                    _ => return None,
+                }
             }
         }
     }
@@ -410,6 +412,7 @@ impl<'src> Parser<'src> {
                 Some(Decl::Func {
                     func,
                     pars,
+                    res,
                     span1,
                     body,
                     span2,
@@ -417,6 +420,29 @@ impl<'src> Parser<'src> {
             }
             _tok => None,
         }
+    }
+
+    fn parse_module(&mut self) -> Option<Module> {
+        self.match_token(Token::Module)?;
+        let name = self.parse_ident()?;
+        self.match_token(Token::Begin)?;
+
+        let mut decls: Vec<Decl> = Vec::new();
+
+        loop {
+            match self.peek_token() {
+                Token::Function => {
+                    let res = self.parse_decl()?;
+                    decls.push(res)
+                }
+                Token::End => {
+                    break;
+                }
+                _tok => return None,
+            }
+        }
+        self.match_token(Token::End)?;
+        Some(Module { name, decls })
     }
 }
 
@@ -436,12 +462,17 @@ fn parser_test() {
         test block comment
     */
 */
+module test
 begin
-    let f = fn(x) => @iadd(x,1);
-    let res = f(42);
-    res
+    function f(x: Int) -> Int
+    begin
+        let f = fn(x) => @iadd(x,1);
+        let res = f(42);
+        res
+    end
 end
 "#;
-    let res = parse_expr(s).unwrap();
+    let mut par = Parser::new(s);
+    let res = par.parse_module().unwrap();
     println!("{:#?}", res);
 }

@@ -143,3 +143,9 @@ impl Decl {
         }
     }
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Module {
+    pub name: Ident,
+    pub decls: Vec<Decl>,
+}
