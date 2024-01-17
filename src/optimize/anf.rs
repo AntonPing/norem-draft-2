@@ -111,3 +111,9 @@ pub enum Expr {
         res: Atom,
     },
 }
+
+#[derive(Clone, Debug)]
+pub struct Module {
+    pub name: Ident,
+    pub decls: Vec<Decl>,
+}

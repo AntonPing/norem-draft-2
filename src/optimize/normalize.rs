@@ -140,15 +140,12 @@ impl Normalizer {
             }
         }
     }
-    pub fn normalize_module(&mut self, modl: &ast::Module) -> anf::Expr {
-        let Module { name: _, decls } = modl;
+    pub fn normalize_module(&mut self, modl: &ast::Module) -> anf::Module {
+        let Module { name, decls } = modl;
 
         let decls = decls.iter().map(|decl| self.normalize_decl(decl)).collect();
 
-        anf::Expr::Decls {
-            decls,
-            cont: Box::new(anf::Expr::Retn { res: Atom::Unit }),
-        }
+        anf::Module { name: *name, decls }
     }
 }
 

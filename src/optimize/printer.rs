@@ -75,3 +75,14 @@ impl fmt::Display for Expr {
         }
     }
 }
+
+impl fmt::Display for Module {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let Module { name, decls } = self;
+        write!(f, "module {} where{NWLN}", name)?;
+        for decl in decls {
+            write!(f, "{}{NWLN}", decl)?;
+        }
+        Ok(())
+    }
+}
