@@ -317,6 +317,7 @@ impl<'src> Parser<'src> {
                         continue;
                     }
                     (Stmt::Do { expr, span: _ }, Token::End) => {
+                        self.match_token(Token::End)?;
                         let res = vec.into_iter().rev().fold(expr, |cont, stmt| {
                             let span = Span {
                                 start: stmt.get_span().start,
@@ -442,6 +443,7 @@ impl<'src> Parser<'src> {
             }
         }
         self.match_token(Token::End)?;
+        self.match_token(Token::EndOfFile)?;
         Some(Module { name, decls })
     }
 }
@@ -469,6 +471,11 @@ begin
         let f = fn(x) => @iadd(x,1);
         let res = f(42);
         res
+    end
+    function g(x: Int) -> Int
+    begin
+        let r = @iadd(x, 1);
+        r
     end
 end
 "#;
