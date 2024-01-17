@@ -2,7 +2,7 @@ use std::iter;
 use std::ops::Deref;
 
 use super::anf::{self, Atom, PrimOpr};
-use crate::syntax::ast;
+use crate::syntax::ast::{self, Module};
 use crate::utils::ident::Ident;
 
 pub struct Normalizer {}
@@ -19,10 +19,14 @@ fn subst(expr: anf::Expr, hole: Ident, atom: Atom) -> anf::Expr {
 }
 
 impl Normalizer {
-    pub fn run(expr: &ast::Expr) -> anf::Expr {
+    pub fn new() -> Normalizer {
+        Normalizer {}
+    }
+
+    pub fn normalize_expr(expr: &ast::Expr) -> anf::Expr {
         let mut pass = Normalizer {};
         let bind = Ident::fresh(&"r");
-        pass.normalize(
+        pass.normalize_expr_with_cont(
             expr,
             &bind,
             anf::Expr::Retn {
@@ -33,7 +37,12 @@ impl Normalizer {
 
     // translate from ast::Expr to anf::Expr, basically ssa translation
     // order of evaluation for function arguments: from right to left
-    fn normalize(&mut self, expr: &ast::Expr, bind: &Ident, rest: anf::Expr) -> anf::Expr {
+    fn normalize_expr_with_cont(
+        &mut self,
+        expr: &ast::Expr,
+        bind: &Ident,
+        rest: anf::Expr,
+    ) -> anf::Expr {
         match expr {
             ast::Expr::Lit { lit, .. } => subst(rest, *bind, (*lit).into()),
             ast::Expr::Var { ident, .. } => subst(rest, *bind, Atom::Var(*ident)),
@@ -48,7 +57,7 @@ impl Normalizer {
                         args: arg_binds.iter().map(|x| anf::Atom::Var(*x)).collect(),
                         cont: Box::new(rest),
                     },
-                    |rest, (bind, arg)| self.normalize(arg, bind, rest),
+                    |rest, (bind, arg)| self.normalize_expr_with_cont(arg, bind, rest),
                 )
             }
             ast::Expr::Func { pars, body, .. } => {
@@ -59,7 +68,7 @@ impl Normalizer {
                     decls: vec![anf::Decl {
                         func: func_bind,
                         pars: pars.clone(),
-                        body: Normalizer::run(body),
+                        body: Normalizer::normalize_expr(body),
                     }],
                     cont: Box::new(subst(rest, *bind, Atom::Var(func_bind))),
                 }
@@ -83,7 +92,7 @@ impl Normalizer {
                             args: arg_binds.iter().map(|x| anf::Atom::Var(*x)).collect(),
                             cont: Box::new(rest),
                         },
-                        |rest, (bind, arg)| self.normalize(arg, bind, rest),
+                        |rest, (bind, arg)| self.normalize_expr_with_cont(arg, bind, rest),
                     )
             }
             ast::Expr::Stmt {
@@ -93,34 +102,78 @@ impl Normalizer {
             } => {
                 // normalize(let x = e1; e2, hole, ctx) =
                 // normalize(e1, x, normalize(e2, hole, ctx)
-                let cont = self.normalize(cont, bind, rest);
+                let cont = self.normalize_expr_with_cont(cont, bind, rest);
                 match stmt.deref() {
                     ast::Stmt::Let {
                         ident,
                         typ: _,
                         expr,
                         span: _,
-                    } => self.normalize(expr, ident, cont),
+                    } => self.normalize_expr_with_cont(expr, ident, cont),
                     ast::Stmt::Do { expr, span: _ } => {
                         let ident = Ident::fresh(&"_");
-                        self.normalize(expr, &ident, cont)
+                        self.normalize_expr_with_cont(expr, &ident, cont)
                     }
                 }
             }
+        }
+    }
+    pub fn normalize_decl(&mut self, decl: &ast::Decl) -> anf::Decl {
+        match decl {
+            ast::Decl::Func {
+                func, pars, body, ..
+            } => {
+                let (pars, _): (_, Vec<ast::Type>) = pars.iter().cloned().unzip();
+                let bind = Ident::fresh(&"r");
+                let body = self.normalize_expr_with_cont(
+                    body,
+                    &bind,
+                    anf::Expr::Retn {
+                        res: Atom::Var(bind),
+                    },
+                );
+                anf::Decl {
+                    func: *func,
+                    pars,
+                    body,
+                }
+            }
+        }
+    }
+    pub fn normalize_module(&mut self, modl: &ast::Module) -> anf::Expr {
+        let Module { name: _, decls } = modl;
+
+        let decls = decls.iter().map(|decl| self.normalize_decl(decl)).collect();
+
+        anf::Expr::Decls {
+            decls,
+            cont: Box::new(anf::Expr::Retn { res: Atom::Unit }),
         }
     }
 }
 
 #[test]
 #[ignore = "just to see result"]
-fn check_test() {
-    use crate::syntax::parser::parse_expr;
-    use crate::syntax::rename::rename_expr;
+fn normalize_test() {
     let s = r#"
-(fn(x) => @iadd(42, x))
+module test
+begin
+    function f(x: Int) -> Int
+    begin
+        let f = fn(x) => @iadd(x,1);
+        let res = f(42);
+        res
+    end
+    function g(x: Int) -> Int
+    begin
+        let r = @iadd(x, 1);
+        r
+    end
+end
 "#;
-    let mut res = parse_expr(s).unwrap();
-    rename_expr(&mut res).unwrap();
-    let res = Normalizer::run(&res);
+    let mut modl = crate::syntax::parser::parse_module(s).unwrap();
+    crate::syntax::rename::rename_module(&mut modl).unwrap();
+    let mut pass = Normalizer::new();
+    let res = pass.normalize_module(&modl);
     println!("{}", res);
 }
