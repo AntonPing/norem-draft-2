@@ -1,10 +1,10 @@
-use super::ast::{Expr, Stmt};
+use super::ast::{Decl, Expr, Module, Stmt};
+use crate::utils::env_map::EnvMap;
 use crate::utils::ident::Ident;
-use std::collections::HashMap;
 use std::ops::DerefMut;
 
 struct Renamer {
-    context: HashMap<Ident, Ident>,
+    context: EnvMap<Ident, Ident>,
 }
 
 type RenameResult = Result<(), String>;
@@ -12,7 +12,7 @@ type RenameResult = Result<(), String>;
 impl Renamer {
     pub fn new() -> Renamer {
         Renamer {
-            context: HashMap::new(),
+            context: EnvMap::new(),
         }
     }
 
@@ -43,18 +43,14 @@ impl Renamer {
                 body,
                 span: _,
             } => {
-                let mut old: Vec<(Ident, Ident)> = Vec::new();
+                self.context.enter_scope();
                 for par in pars.iter_mut() {
                     let new = par.uniquify();
-                    if let Some(val) = self.context.insert(*par, new) {
-                        old.push((*par, val));
-                    }
+                    self.context.insert(*par, new);
                     *par = new;
                 }
                 self.rename_expr(body)?;
-                for (k, v) in old.into_iter() {
-                    self.context.insert(k, v);
-                }
+                self.context.leave_scope();
                 Ok(())
             }
             Expr::App {
@@ -80,13 +76,12 @@ impl Renamer {
                     span: _,
                 } => {
                     self.rename_expr(expr)?;
+                    self.context.enter_scope();
                     let new = ident.uniquify();
-                    let old = self.context.insert(*ident, new);
+                    self.context.insert(*ident, new);
+                    *ident = new;
                     self.rename_expr(cont)?;
-                    if let Some(old) = old {
-                        self.context.insert(*ident, old);
-                    }
-
+                    self.context.leave_scope();
                     Ok(())
                 }
                 Stmt::Do { expr, span: _ } => {
@@ -97,6 +92,47 @@ impl Renamer {
             },
         }
     }
+    fn rename_decl(&mut self, decl: &mut Decl) -> RenameResult {
+        match decl {
+            Decl::Func {
+                func: _,
+                pars,
+                res: _,
+                span1: _,
+                body,
+                span2: _,
+            } => {
+                self.context.enter_scope();
+                for (par, _) in pars.iter_mut() {
+                    let new = par.uniquify();
+                    self.context.insert(*par, new);
+                    *par = new;
+                }
+                self.rename_expr(body)?;
+                self.context.leave_scope();
+                Ok(())
+            }
+        }
+    }
+
+    fn rename_module(&mut self, modl: &mut Module) -> RenameResult {
+        let Module { name: _, decls } = modl;
+        self.context.enter_scope();
+        for decl in decls.iter_mut() {
+            match decl {
+                Decl::Func { func, .. } => {
+                    let new = func.uniquify();
+                    self.context.insert(*func, new);
+                    *func = new;
+                }
+            }
+        }
+        for decl in decls.iter_mut() {
+            self.rename_decl(decl)?;
+        }
+        self.context.leave_scope();
+        Ok(())
+    }
 }
 
 pub fn rename_expr(expr: &mut Expr) -> RenameResult {
@@ -104,15 +140,33 @@ pub fn rename_expr(expr: &mut Expr) -> RenameResult {
     pass.rename_expr(expr)
 }
 
+pub fn rename_module(expr: &mut Module) -> RenameResult {
+    let mut pass = Renamer::new();
+    pass.rename_module(expr)
+}
+
 #[test]
 #[ignore = "just to see result"]
 fn renamer_test() {
-    use super::parser::parse_expr;
+    use crate::syntax::parser::parse_module;
     let s = r#"
-fn(x) => @iadd((fn(x) => @iadd(x,1))(42), x)
+module test
+begin
+    function f(x: Int) -> Int
+    begin
+        let h = fn(x) => @iadd(x, 1);
+        let r = g(x);
+        r
+    end
+    function g(x: Int) -> Int
+    begin
+        let r = @iadd(x, 1);
+        r
+    end
+end
 "#;
 
-    let mut res = parse_expr(s).unwrap();
-    rename_expr(&mut res).unwrap();
-    println!("{:#?}", res);
+    let mut modl = parse_module(s).unwrap();
+    rename_module(&mut modl).unwrap();
+    println!("{:#?}", modl);
 }

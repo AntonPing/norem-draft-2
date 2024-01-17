@@ -454,6 +454,12 @@ pub fn parse_expr<'src>(s: &'src str) -> Option<Expr> {
     res
 }
 
+pub fn parse_module<'src>(s: &'src str) -> Option<Module> {
+    let mut par = Parser::new(s);
+    let res = par.parse_module();
+    res
+}
+
 #[test]
 #[ignore = "just to see result"]
 fn parser_test() {
