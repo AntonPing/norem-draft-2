@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::utils::ident::Ident;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -50,15 +52,26 @@ pub struct Block {
     pub code: Vec<Instr>,
 }
 
+pub struct Module {
+    pub name: Ident,
+    pub blks: HashMap<Ident, Block>,
+}
+
 impl std::fmt::Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "fn {}({})\n", self.func, self.max_reg)?;
+        write!(f, "block {}({})\n", self.func, self.max_reg)?;
         for (i, ins) in self.code.iter().enumerate() {
-            if let Instr::Label(_) = ins {
-                write!(f, "--- {}:\t{:?}\n", i, ins)?;
-            } else {
-                write!(f, "    {}:\t{:?}\n", i, ins)?;
-            }
+            write!(f, "    {}:\t{:?}\n", i, ins)?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Display for Module {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        writeln!(f, "module {} where", self.name)?;
+        for (_, blk) in self.blks.iter() {
+            write!(f, "{}\n", blk)?;
         }
         Ok(())
     }
