@@ -1,5 +1,5 @@
-use super::instr::{Block, Instr, Reg};
-use crate::optimize::anf::*;
+use super::instr::{Block, Instr, Module, Reg};
+use crate::optimize::anf::{self, Atom, Decl, Expr, PrimOpr};
 use crate::utils::ident::Ident;
 use std::collections::HashMap;
 
@@ -22,6 +22,22 @@ impl Codegen {
         }
 
         pass.blocks
+    }
+
+    pub fn run_module(modl: &anf::Module) -> Module {
+        let mut pass = Codegen {
+            code: Vec::new(),
+            blocks: Vec::new(),
+            max_reg: 0,
+            reg_map: HashMap::new(),
+        };
+
+        pass.visit_module(modl);
+        let blks = pass.blocks.into_iter().map(|blk| (blk.func, blk)).collect();
+        Module {
+            name: modl.name,
+            blks,
+        }
     }
 
     fn new_reg(&mut self) -> Reg {
@@ -73,6 +89,12 @@ impl Codegen {
                 Atom::Unit => {}
             }
             reg
+        }
+    }
+
+    fn visit_module(&mut self, modl: &anf::Module) {
+        for decl in modl.decls.iter() {
+            self.visit_decl(&decl)
         }
     }
 
@@ -200,32 +222,21 @@ impl Codegen {
 #[ignore = "just to see result"]
 fn codegen_test() {
     let s = r#"
-decl
-    fn f(x) begin
-        let a = @iadd(x, 1);
-        let b = @iadd(a, 1);
-        let c = @iadd(b, 1);
-        let y = @iadd(c, 1);
-        return y;
-    end
-    fn main() begin
-        let z = f(42);
-        return z;
-    end
-in
-    return 42;
+module test where
+fn f(x) begin
+    let a = @iadd(x, 1);
+    let b = @iadd(a, 1);
+    let c = @iadd(b, 1);
+    let y = @iadd(c, 1);
+    return y;
+end
+fn main() begin
+    let z = f(42);
+    return z;
 end
 "#;
-    let expr = crate::optimize::parser::parse_expr(s).unwrap();
-    println!("{}\n", expr);
-    let (decls, expr) = crate::optimize::closure::ClosConv::run(expr);
-    for decl in decls.iter() {
-        println!("{}\n", decl);
-    }
-    println!("{}\n", expr);
-
-    let blks = Codegen::run(&decls);
-    for blk in blks.iter() {
-        println!("{}", blk);
-    }
+    let modl = crate::optimize::parser::parse_module(s).unwrap();
+    println!("{}\n", modl);
+    let modl = Codegen::run_module(&modl);
+    println!("{}\n", modl);
 }
