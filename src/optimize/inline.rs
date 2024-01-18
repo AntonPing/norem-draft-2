@@ -11,12 +11,12 @@ pub struct InlineScan {
 }
 
 impl InlineScan {
-    pub fn run(expr: &Expr) -> HashSet<Ident> {
+    pub fn run(modl: &Module) -> HashSet<Ident> {
         let mut pass = InlineScan {
             occur_map: HashMap::new(),
             inline_mark: HashSet::new(),
         };
-        pass.visit_expr(expr);
+        pass.visit_module(modl);
         pass.inline_mark
     }
 
@@ -28,6 +28,13 @@ impl InlineScan {
             } else {
                 self.occur_map.insert(*x, (1, 0));
             }
+        }
+    }
+
+    fn visit_module(&mut self, modl: &Module) {
+        let Module { name: _, decls } = modl;
+        for decl in decls {
+            self.visit_decl(decl);
         }
     }
 
@@ -47,15 +54,17 @@ impl InlineScan {
         match expr {
             Expr::Decls { decls, cont } => {
                 self.visit_expr(cont);
-                decls.iter().for_each(|decl| self.visit_decl(decl));
-                decls.iter().for_each(|decl| {
+                for decl in decls {
+                    self.visit_decl(decl)
+                }
+                for decl in decls {
                     let name = decl.func;
                     let res = self.occur_map.remove(&name);
                     if res == Some((1, 1)) {
                         // todo: some other heuristic
                         self.inline_mark.insert(name);
                     }
-                })
+                }
             }
             Expr::Prim {
                 bind,
@@ -99,18 +108,46 @@ pub struct InlinePerform {
 }
 
 impl InlinePerform {
-    pub fn run(expr: Expr, mark: HashSet<Ident>) -> Expr {
+    pub fn run(modl: Module, mark: HashSet<Ident>) -> Module {
         let mut pass = InlinePerform {
             inline_mark: mark,
             map: HashMap::new(),
         };
-        pass.visit_expr(expr)
+        pass.visit_module(modl)
+    }
+
+    fn visit_module(&mut self, modl: Module) -> Module {
+        let Module { name, decls } = modl;
+
+        let decls: Vec<Decl> = decls
+            .into_iter()
+            .map(|decl| self.visit_decl(decl))
+            .collect();
+
+        decls.iter().for_each(|decl| {
+            if self.inline_mark.contains(&decl.func) {
+                self.map.insert(decl.func, decl.clone());
+            }
+        });
+
+        Module { name, decls }
+    }
+
+    fn visit_decl(&mut self, decl: Decl) -> Decl {
+        let Decl { func, pars, body } = decl;
+        let body = self.visit_expr(body);
+        Decl { func, pars, body }
     }
 
     fn visit_expr(&mut self, expr: Expr) -> Expr {
         match expr {
             Expr::Decls { decls, cont } => {
-                let decls = decls
+                let decls: Vec<Decl> = decls
+                    .into_iter()
+                    .map(|decl| self.visit_decl(decl))
+                    .collect();
+
+                let decls: Vec<Decl> = decls
                     .into_iter()
                     .flat_map(|decl| {
                         if self.inline_mark.contains(&decl.func) {
@@ -121,8 +158,14 @@ impl InlinePerform {
                         }
                     })
                     .collect();
+
                 let cont = Box::new(self.visit_expr(*cont));
-                Expr::Decls { decls, cont }
+
+                if decls.is_empty() {
+                    *cont
+                } else {
+                    Expr::Decls { decls, cont }
+                }
             }
             Expr::Prim {
                 bind,
@@ -228,16 +271,19 @@ fn inline_call(decl: Decl, bind: Ident, func: Ident, args: Vec<Atom>, cont: Expr
 #[ignore = "just to see result"]
 fn inline_test() {
     let s = r#"
-decl
-    fn f(x) begin
-       return x; 
+module test where
+fn g(x) begin
+    decl
+        fn f(x) begin
+        return x; 
+        end
+    in
+        let y = f(42);
+        return y;
     end
-in
-    let y = f(42);
-    return y;
 end
 "#;
-    let expr = super::parser::parse_expr(s).unwrap();
+    let expr = super::parser::parse_module(s).unwrap();
     println!("{}", expr);
     let mark = InlineScan::run(&expr);
     let expr = InlinePerform::run(expr, mark);
