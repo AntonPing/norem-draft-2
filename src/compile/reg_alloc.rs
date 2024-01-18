@@ -1,27 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
-use super::instr::{Block, Instr, Reg};
+use super::instr::{Block, Instr, Module, Reg};
 
-pub struct RegAlloc {
+pub struct LifetimeScan {
     life_span: HashMap<Reg, (usize, usize)>,
 }
 
-impl RegAlloc {
-    pub fn run(blk: &mut Block) {
-        let mut pass = RegAlloc {
-            life_span: HashMap::new(),
-        };
-
-        for (idx, ins) in blk.code.iter().enumerate() {
-            pass.extend_span(ins, idx);
-        }
-
-        let vec = life_span_to_vec(pass.life_span);
-        let (max_reg, reg_map) = reg_alloc(&vec);
-        blk.max_reg = max_reg;
-        reg_rename(blk, &reg_map)
-    }
-
+impl LifetimeScan {
     fn extend_start(&mut self, var: &Reg, idx: usize) {
         if let Some((s, _)) = self.life_span.get_mut(var) {
             if idx < *s {
@@ -95,9 +80,47 @@ impl RegAlloc {
     }
 }
 
+pub struct RegAlloc {}
+
+impl RegAlloc {
+    pub fn run(blk: &mut Block) {
+        let mut pass = LifetimeScan {
+            life_span: HashMap::new(),
+        };
+        for (idx, ins) in blk.code.iter().enumerate() {
+            pass.extend_span(ins, idx);
+        }
+        let vec = life_span_to_vec(pass.life_span);
+        let (max_reg, reg_map) = reg_alloc(&vec);
+        blk.max_reg = max_reg;
+        reg_rename(blk, &reg_map)
+    }
+
+    pub fn run_module(modl: &mut Module) {
+        for (_, blk) in modl.blks.iter_mut() {
+            let life = get_life_span(&blk);
+            let life_vec = life_span_to_vec(life);
+            let (max_reg, reg_map) = reg_alloc(&life_vec);
+            blk.max_reg = max_reg;
+            reg_rename(blk, &reg_map);
+        }
+    }
+}
+
+fn get_life_span(blk: &Block) -> HashMap<Reg, (usize, usize)> {
+    let mut pass = LifetimeScan {
+        life_span: HashMap::new(),
+    };
+
+    for (idx, ins) in blk.code.iter().enumerate() {
+        pass.extend_span(ins, idx);
+    }
+
+    pass.life_span
+}
+
 fn life_span_to_vec(span: HashMap<Reg, (usize, usize)>) -> Vec<(HashSet<Reg>, HashSet<Reg>)> {
     let mut vec = Vec::new();
-
     for (reg, (enter, leave)) in span {
         while vec.len() < std::cmp::max(enter, leave) + 1 {
             vec.push((HashSet::new(), HashSet::new()));
@@ -173,37 +196,23 @@ fn reg_rename(blk: &mut Block, map: &HashMap<Reg, Reg>) {
 #[ignore = "just to see result"]
 fn reg_alloc_test() {
     let s = r#"
-decl
-    fn f(x) begin
-        let a = @iadd(x, 1);
-        let b = @iadd(a, 1);
-        let c = @iadd(b, 1);
-        let y = @iadd(c, 1);
-        return y;
-    end
-    fn main() begin
-        let z = f(42);
-        return z;
-    end
-in
-    return 42;
+module test where
+fn f(x) begin
+    let a = @iadd(x, 1);
+    let b = @iadd(a, 1);
+    let c = @iadd(b, 1);
+    let y = @iadd(c, 1);
+    return y;
+end
+fn main() begin
+    let z = f(42);
+    return z;
 end
 "#;
-    let expr = crate::optimize::parser::parse_expr(s).unwrap();
-    println!("{}\n", expr);
-    let (decls, expr) = crate::optimize::closure::ClosConv::run(expr);
-    for decl in decls.iter() {
-        println!("{}\n", decl);
-    }
-    println!("{}\n", expr);
-
-    let mut blks = super::codegen::Codegen::run(&decls);
-    for blk in blks.iter() {
-        println!("{}", blk);
-    }
-
-    blks.iter_mut().for_each(|blk| RegAlloc::run(blk));
-    for blk in blks.iter() {
-        println!("{}", blk);
-    }
+    let modl = crate::optimize::parser::parse_module(s).unwrap();
+    println!("{}\n", modl);
+    let mut modl = super::codegen::Codegen::run_module(&modl);
+    println!("{}", modl);
+    RegAlloc::run_module(&mut modl);
+    println!("{}", modl);
 }
