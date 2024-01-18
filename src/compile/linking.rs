@@ -1,6 +1,8 @@
 use crate::compile::instr::{Block, Instr};
 use crate::utils::ident::Ident;
 use std::collections::HashMap;
+
+use super::instr::Module;
 pub struct Linker {
     code: Vec<Instr>,
     addr_map: HashMap<Ident, usize>,
@@ -12,25 +14,36 @@ impl Linker {
             code: Vec::new(),
             addr_map: HashMap::new(),
         };
-
-        pass.scan_addr(blks);
+        for blk in blks.iter() {
+            pass.scan_addr(blk);
+        }
         pass.replace_addr();
         (pass.code, pass.addr_map)
     }
 
-    fn scan_addr(&mut self, blks: &Vec<Block>) {
-        for blk in blks {
-            self.addr_map.insert(blk.func, self.code.len());
-            self.code.push(Instr::Bump(blk.max_reg));
-            for ins in blk.code.iter() {
-                match ins {
-                    Instr::Label(label) => {
-                        assert!(!self.addr_map.contains_key(&label));
-                        self.addr_map.insert(*label, self.code.len());
-                    }
-                    _ => {
-                        self.code.push(*ins);
-                    }
+    pub fn run_module(modl: &Module) -> (Vec<Instr>, HashMap<Ident, usize>) {
+        let mut pass = Linker {
+            code: Vec::new(),
+            addr_map: HashMap::new(),
+        };
+        for (_, blk) in modl.blks.iter() {
+            pass.scan_addr(blk);
+        }
+        pass.replace_addr();
+        (pass.code, pass.addr_map)
+    }
+
+    fn scan_addr(&mut self, blk: &Block) {
+        self.addr_map.insert(blk.func, self.code.len());
+        self.code.push(Instr::Bump(blk.max_reg));
+        for ins in blk.code.iter() {
+            match ins {
+                Instr::Label(label) => {
+                    assert!(!self.addr_map.contains_key(&label));
+                    self.addr_map.insert(*label, self.code.len());
+                }
+                _ => {
+                    self.code.push(*ins);
                 }
             }
         }
@@ -57,36 +70,24 @@ impl Linker {
 #[ignore = "just to see result"]
 fn linking_test() {
     let s = r#"
-decl
-    fn f(x) begin
-        let a = @iadd(x, 1);
-        let b = @iadd(a, 1);
-        let c = @iadd(b, 1);
-        let y = @iadd(c, 1);
-        return y;
-    end
-    fn main() begin
-        let z = f(42);
-        return z;
-    end
-in
-    return 42;
+module test where
+fn f(x) begin
+    let a = @iadd(x, 1);
+    let b = @iadd(a, 1);
+    let c = @iadd(b, 1);
+    let y = @iadd(c, 1);
+    return y;
+end
+fn main() begin
+    let z = f(42);
+    return z;
 end
 "#;
-    let expr = crate::optimize::parser::parse_expr(s).unwrap();
-    println!("{}\n", expr);
-    let (decls, expr) = crate::optimize::closure::ClosConv::run(expr);
-    for decl in decls.iter() {
-        println!("{}\n", decl);
-    }
-    println!("{}\n", expr);
-
-    let blks = crate::compile::codegen::Codegen::run(&decls);
-    for blk in blks.iter() {
-        println!("{}", blk);
-    }
-
-    let (code, _) = Linker::run(&blks);
+    let modl = crate::optimize::parser::parse_module(s).unwrap();
+    println!("{}\n", modl);
+    let modl = crate::compile::codegen::Codegen::run_module(&modl);
+    println!("{}\n", modl);
+    let (code, _) = Linker::run_module(&modl);
     for line in code {
         println!("{:?}", line);
     }
