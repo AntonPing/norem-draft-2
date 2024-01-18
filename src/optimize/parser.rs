@@ -173,6 +173,14 @@ fn decl(input: &str) -> IResult<&str, Decl> {
     Ok((input, Decl { func, pars, body }))
 }
 
+fn module(input: &str) -> IResult<&str, Module> {
+    let (input, _) = skip_space_tag("module", input)?;
+    let (input, name) = ident(input)?;
+    let (input, _) = skip_space_tag("where", input)?;
+    let (input, decls) = many0(decl)(input)?;
+    Ok((input, Module { name, decls }))
+}
+
 pub fn parse_expr(input: &str) -> Option<Expr> {
     match expr(input) {
         Ok((input, mut expr)) => {
@@ -188,23 +196,43 @@ pub fn parse_expr(input: &str) -> Option<Expr> {
     }
 }
 
+pub fn parse_module(input: &str) -> Option<Module> {
+    match module(input) {
+        Ok((input, mut modl)) => {
+            let (input, _) = skip_space(input).unwrap();
+            if input == "" {
+                Some(modl)
+            } else {
+                None
+            }
+        }
+        Err(_) => None,
+    }
+}
+
 #[test]
 #[ignore = "just to see result"]
 fn parser_test() {
     let s = r#"
-decl
-    fn f(x, y, z) begin
-       return z; 
+module test where
+fn top1(x, y) begin
+    return x;
+end
+fn top2(x) begin
+    decl
+        fn f(x, y, z) begin
+        return z; 
+        end
+        fn g(x, y, z) begin
+            return z; 
+        end
+    in
+        let x = @iadd(1, 2);
+        let y = f(x, x, x);
+        return 3;
     end
-    fn g(x, y, z) begin
-       return z; 
-    end
-in
-    let x = @iadd(1, 2);
-    let y = f(x, x, x);
-    return 3;
 end
 "#;
-    let res = parse_expr(s).unwrap();
+    let res = parse_module(s).unwrap();
     println!("{}", res);
 }
