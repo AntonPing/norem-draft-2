@@ -22,11 +22,36 @@ impl ClosConv {
         (pass.toplevel, expr)
     }
 
+    pub fn run_module(modl: Module) -> Module {
+        let mut pass = ClosConv {
+            toplevel: Vec::new(),
+            freevar: HashSet::new(),
+        };
+        let modl_name = modl.name;
+        pass.visit_module(modl);
+        assert!(pass.freevar.is_empty());
+        let mut res = Module {
+            name: modl_name,
+            decls: pass.toplevel,
+        };
+        super::rename::Renamer::run_module(&mut res);
+        res
+    }
+
     fn visit_atom(&mut self, atom: Atom) -> Atom {
         if let Atom::Var(x) = atom {
             self.freevar.insert(x);
         }
         atom
+    }
+
+    fn visit_module(&mut self, modl: Module) {
+        let Module { name: _, decls } = modl;
+        let expr = Expr::Decls {
+            decls,
+            cont: Box::new(Expr::Retn { res: Atom::Unit }),
+        };
+        self.visit_expr(expr);
     }
 
     fn visit_decl(&mut self, decl: Decl) -> Decl {
@@ -166,85 +191,76 @@ impl ClosConv {
 #[ignore = "just to see result"]
 fn clos_conv_test_1() {
     let s = r#"
-decl
-    fn f(x) begin
-        decl
-            fn g(y) begin
-                let z = @iadd(x, y);
-                return z;
-            end
-        in
-            return g;
+module test where
+fn f(x) begin
+    decl
+        fn g(y) begin
+            let z = @iadd(x, y);
+            return z;
         end
+    in
+        return g;
     end
-in
+end
+fn top(x) begin
     let h = f(1);
     let r = h(2);
     return r;
 end
 "#;
-    let expr = super::parser::parse_expr(s).unwrap();
-    println!("{}\n", expr);
-    let (toplevel, expr) = ClosConv::run(expr);
-    for decl in toplevel {
-        println!("{}\n", decl);
-    }
-    println!("{}\n", expr);
+    let modl = super::parser::parse_module(s).unwrap();
+    println!("{}\n", modl);
+    let modl = ClosConv::run_module(modl);
+    println!("{}\n", modl);
 }
 
 #[test]
 #[ignore = "just to see result"]
 fn clos_conv_test_2() {
     let s = r#"
-decl
-    fn f(x) begin
-        let y = @iadd(x, 1);
-        return y;
-    end
-    fn g(z) begin
-        let a = f(z);
-        return a;
-    end
-in
+module test where
+fn f(x) begin
+    let y = @iadd(x, 1);
+    return y;
+end
+fn g(z) begin
+    let a = f(z);
+    return a;
+end
+fn top() begin
     let r = g(42);
     return r;
 end
 "#;
-    let expr = super::parser::parse_expr(s).unwrap();
-    println!("{}\n", expr);
-    let (toplevel, expr) = ClosConv::run(expr);
-    for decl in toplevel {
-        println!("{}\n", decl);
-    }
-    println!("{}\n", expr);
+    let modl = super::parser::parse_module(s).unwrap();
+    println!("{}\n", modl);
+    let modl = ClosConv::run_module(modl);
+    println!("{}\n", modl);
 }
 
 #[test]
 #[ignore = "just to see result"]
 fn clos_conv_test_3() {
     let s = r#"
-decl
-    fn f(x) begin
-        decl
-            fn g(z) begin
-                let a = f(z);
-                return a;
-            end
-        in
-            let y = @iadd(x, 1);
-            return y;
+module test where
+fn f(x) begin
+    decl
+        fn g(z) begin
+            let a = f(z);
+            return a;
         end
+    in
+        let y = @iadd(x, 1);
+        return y;
     end
-in
+end
+fn top() begin
     let r = f(42);
     return r;
 end
 "#;
-    let expr = super::parser::parse_expr(s).unwrap();
-    println!("{}\n", expr);
-    let (toplevel, expr) = ClosConv::run(expr);
-    for decl in toplevel {
-        println!("{}\n", decl);
-    }
-    println!("{}\n", expr);
+    let modl = super::parser::parse_module(s).unwrap();
+    println!("{}\n", modl);
+    let modl = ClosConv::run_module(modl);
+    println!("{}\n", modl);
 }
