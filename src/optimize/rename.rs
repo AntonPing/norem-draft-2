@@ -1,45 +1,46 @@
 use super::anf::*;
+use crate::utils::env_map::EnvMap;
 use crate::utils::ident::Ident;
-use std::collections::HashMap;
 
 pub struct Renamer {
-    subst: HashMap<Ident, Ident>,
+    context: EnvMap<Ident, Ident>,
 }
 
 impl Renamer {
-    pub fn run(expr: &mut Expr) {
+    pub fn run(modl: &mut Expr) {
         let mut pass = Renamer {
-            subst: HashMap::new(),
+            context: EnvMap::new(),
         };
-        pass.visit_expr(expr);
+        pass.visit_expr(modl);
     }
 
-    pub fn run_decl(decl: &mut Decl) {
+    pub fn run_module(modl: &mut Module) {
         let mut pass = Renamer {
-            subst: HashMap::new(),
+            context: EnvMap::new(),
         };
-        pass.visit_decl(decl);
-    }
-
-    fn enter_scope(&mut self, bind: &mut Ident) -> Option<(Ident, Ident)> {
-        let new_bind = bind.uniquify();
-        let old = self.subst.insert(*bind, new_bind).map(|v| (*bind, v));
-        *bind = new_bind;
-        old
-    }
-
-    fn leave_scope(&mut self, old: Option<(Ident, Ident)>) {
-        if let Some((k, v)) = old {
-            self.subst.insert(k, v);
-        }
+        pass.visit_module(modl);
     }
 
     fn visit_atom(&mut self, atom: &mut Atom) {
         if let Atom::Var(x) = atom {
-            if let Some(y) = self.subst.get(&x) {
+            if let Some(y) = self.context.get(&x) {
                 *atom = Atom::Var(*y);
             }
         }
+    }
+
+    fn visit_module(&mut self, modl: &mut Module) {
+        let Module { name: _, decls } = modl;
+        self.context.enter_scope();
+        for decl in decls.iter_mut() {
+            let new = decl.func.uniquify();
+            self.context.insert(decl.func, new);
+            decl.func = new;
+        }
+        for decl in decls {
+            self.visit_decl(decl);
+        }
+        self.context.leave_scope()
     }
 
     fn visit_decl(&mut self, decl: &mut Decl) {
@@ -48,22 +49,30 @@ impl Renamer {
             pars,
             body,
         } = decl;
-        let olds: Vec<Option<(Ident, Ident)>> =
-            pars.iter_mut().map(|par| self.enter_scope(par)).collect();
+        self.context.enter_scope();
+        for par in pars {
+            let new = par.uniquify();
+            self.context.insert(*par, new);
+            *par = new;
+        }
         self.visit_expr(body);
-        olds.into_iter().for_each(|old| self.leave_scope(old))
+        self.context.leave_scope();
     }
 
     fn visit_expr(&mut self, expr: &mut Expr) {
         match expr {
             Expr::Decls { decls, cont } => {
-                let olds: Vec<Option<(Ident, Ident)>> = decls
-                    .iter_mut()
-                    .map(|decl| self.enter_scope(&mut decl.func))
-                    .collect();
-                decls.iter_mut().for_each(|decl| self.visit_decl(decl));
+                self.context.enter_scope();
+                for decl in decls.iter_mut() {
+                    let new = decl.func.uniquify();
+                    self.context.insert(decl.func, new);
+                    decl.func = new;
+                }
+                for decl in decls {
+                    self.visit_decl(decl);
+                }
                 self.visit_expr(cont);
-                olds.into_iter().for_each(|old| self.leave_scope(old))
+                self.context.leave_scope()
             }
             Expr::Prim {
                 bind,
@@ -72,9 +81,12 @@ impl Renamer {
                 cont,
             } => {
                 args.iter_mut().for_each(|arg| self.visit_atom(arg));
-                let old = self.enter_scope(bind);
+                self.context.enter_scope();
+                let new = bind.uniquify();
+                self.context.insert(*bind, new);
+                *bind = new;
                 self.visit_expr(cont);
-                self.leave_scope(old)
+                self.context.leave_scope()
             }
             Expr::Call {
                 bind,
@@ -84,9 +96,12 @@ impl Renamer {
             } => {
                 self.visit_atom(func);
                 args.iter_mut().for_each(|arg| self.visit_atom(arg));
-                let old = self.enter_scope(bind);
+                self.context.enter_scope();
+                let new = bind.uniquify();
+                self.context.insert(*bind, new);
+                *bind = new;
                 self.visit_expr(cont);
-                self.leave_scope(old)
+                self.context.leave_scope()
             }
             Expr::Retn { res } => {
                 self.visit_atom(res);
@@ -99,19 +114,22 @@ impl Renamer {
 #[ignore = "just to see result"]
 fn rename_test() {
     let s = r#"
-let x = @move(1);
-decl
-    fn f(x) begin
-       return x; 
+module test where
+fn f(x) begin
+    let x = @move(1);
+    decl
+        fn f(x) begin
+        return x; 
+        end
+    in
+        let y = f(42);
+        let z = @iadd(x, y);
+        return z;
     end
-in
-    let y = f(42);
-    let z = @iadd(x, y);
-    return z;
 end
 "#;
-    let mut expr = super::parser::parse_expr(s).unwrap();
-    println!("{}\n", expr);
-    Renamer::run(&mut expr);
-    println!("{}\n", expr);
+    let mut modl = super::parser::parse_module(s).unwrap();
+    println!("{}\n", modl);
+    Renamer::run_module(&mut modl);
+    println!("{}\n", modl);
 }
