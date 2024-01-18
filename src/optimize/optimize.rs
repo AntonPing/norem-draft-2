@@ -1,4 +1,4 @@
-use super::anf::{self, Atom, Expr, PrimOpr};
+use super::anf::{self, Atom, Module, PrimOpr};
 use crate::utils::ident::Ident;
 use std::collections::{HashMap, HashSet};
 
@@ -8,12 +8,12 @@ pub struct Optimizer {
 }
 
 impl Optimizer {
-    pub fn run(expr: Expr) -> Expr {
+    pub fn run(modl: Module) -> Module {
         let mut pass = Optimizer {
             atom_map: HashMap::new(),
             used_set: HashSet::new(),
         };
-        pass.visit_expr(expr)
+        pass.visit_module(modl)
     }
 
     fn visit_atom(&mut self, arg: Atom) -> Atom {
@@ -33,6 +33,29 @@ impl Optimizer {
         if let Atom::Var(var) = arg {
             self.used_set.insert(*var);
         }
+    }
+
+    fn visit_module(&mut self, modl: anf::Module) -> anf::Module {
+        let Module { name, decls } = modl;
+
+        let func_names: Vec<Ident> = decls.iter().map(|decl| decl.func).collect();
+
+        let decls: Vec<anf::Decl> = decls
+            .into_iter()
+            .map(|decl| {
+                let anf::Decl { func, pars, body } = decl;
+                let body = self.visit_expr(body);
+                for par in pars.iter() {
+                    self.used_set.remove(par);
+                }
+                for name in func_names.iter() {
+                    self.used_set.remove(name);
+                }
+                anf::Decl { func, pars, body }
+            })
+            .collect();
+
+        Module { name, decls }
     }
 
     fn visit_expr(&mut self, expr: anf::Expr) -> anf::Expr {
@@ -178,14 +201,17 @@ fn calculate_reachable(
 #[ignore = "just to see result"]
 fn optimize_test_const_fold() {
     let s = r#"
-let x = @iadd(1, 2);
-let y = @iadd(x, x);
-let z = @iadd(x, y);
-return z;
+module test where
+fn f() begin
+    let x = @iadd(1, 2);
+    let y = @iadd(x, x);
+    let z = @iadd(x, y);
+    return z;
+end
 "#;
-    let expr = super::parser::parse_expr(s).unwrap();
-    println!("{}\n", expr);
-    let expr = Optimizer::run(expr);
+    let modl = super::parser::parse_module(s).unwrap();
+    println!("{}\n", modl);
+    let expr = Optimizer::run(modl);
     println!("{}\n", expr);
 }
 
@@ -193,12 +219,15 @@ return z;
 #[ignore = "just to see result"]
 fn optimize_test_dead_elim() {
     let s = r#"
-let x = @iadd(a, b);
-let y = @iadd(x, c);
-let z = @iadd(x, y);
-return y;
+module test where
+fn f() begin
+    let x = @iadd(a, b);
+    let y = @iadd(x, c);
+    let z = @iadd(x, y);
+    return y;
+end
 "#;
-    let expr = super::parser::parse_expr(s).unwrap();
+    let expr = super::parser::parse_module(s).unwrap();
     println!("{}\n", expr);
     let expr = Optimizer::run(expr);
     println!("{}\n", expr);
@@ -208,20 +237,23 @@ return y;
 #[ignore = "just to see result"]
 fn optimize_test_unused_func() {
     let s = r#"
-decl
-    fn f(x) begin
-       return x; 
+module test where
+fn f() begin
+    decl
+        fn f(x) begin
+        return x; 
+        end
+        fn g(x) begin
+            let y = g(x);
+            return y; 
+        end
+    in
+        let y = f(x);
+        return y;
     end
-    fn g(x) begin
-        let y = g(x);
-        return y; 
-    end
-in
-    let y = f(x);
-    return y;
 end
 "#;
-    let expr = super::parser::parse_expr(s).unwrap();
+    let expr = super::parser::parse_module(s).unwrap();
     println!("{}\n", expr);
     let expr = Optimizer::run(expr);
     println!("{}\n", expr);
