@@ -19,8 +19,9 @@ fn subst(expr: anf::Expr, hole: Ident, atom: Atom) -> anf::Expr {
 }
 
 impl Normalizer {
-    pub fn new() -> Normalizer {
-        Normalizer {}
+    pub fn run(modl: &ast::Module) -> anf::Module {
+        let mut pass = Normalizer {};
+        pass.normalize_module(modl)
     }
 
     pub fn normalize_expr(expr: &ast::Expr) -> anf::Expr {
@@ -170,7 +171,6 @@ end
 "#;
     let mut modl = crate::syntax::parser::parse_module(s).unwrap();
     crate::syntax::rename::rename_module(&mut modl).unwrap();
-    let mut pass = Normalizer::new();
-    let res = pass.normalize_module(&modl);
+    let res = Normalizer::run(&modl);
     println!("{}", res);
 }
