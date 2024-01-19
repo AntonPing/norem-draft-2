@@ -181,27 +181,12 @@ fn module(input: &str) -> IResult<&str, Module> {
     Ok((input, Module { name, decls }))
 }
 
-pub fn parse_expr(input: &str) -> Option<Expr> {
-    match expr(input) {
-        Ok((input, mut expr)) => {
-            let (input, _) = skip_space(input).unwrap();
-            if input == "" {
-                super::rename::Renamer::run(&mut expr);
-                Some(expr)
-            } else {
-                None
-            }
-        }
-        Err(_) => None,
-    }
-}
-
 pub fn parse_module(input: &str) -> Option<Module> {
     match module(input) {
         Ok((input, mut modl)) => {
             let (input, _) = skip_space(input).unwrap();
             if input == "" {
-                super::rename::Renamer::run_module(&mut modl);
+                super::rename::Renamer::run(&mut modl);
                 Some(modl)
             } else {
                 None

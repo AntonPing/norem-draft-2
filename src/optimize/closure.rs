@@ -8,21 +8,7 @@ pub struct ClosConv {
 }
 
 impl ClosConv {
-    pub fn run(expr: Expr) -> (Vec<Decl>, Expr) {
-        let mut pass = ClosConv {
-            toplevel: Vec::new(),
-            freevar: HashSet::new(),
-        };
-        let mut expr = pass.visit_expr(expr);
-        assert!(pass.freevar.is_empty());
-        super::rename::Renamer::run(&mut expr);
-        for decl in pass.toplevel.iter_mut() {
-            super::rename::Renamer::run_decl(decl);
-        }
-        (pass.toplevel, expr)
-    }
-
-    pub fn run_module(modl: Module) -> Module {
+    pub fn run(modl: Module) -> Module {
         let mut pass = ClosConv {
             toplevel: Vec::new(),
             freevar: HashSet::new(),
@@ -34,7 +20,7 @@ impl ClosConv {
             name: modl_name,
             decls: pass.toplevel,
         };
-        super::rename::Renamer::run_module(&mut res);
+        super::rename::Renamer::run(&mut res);
         res
     }
 
@@ -210,7 +196,7 @@ end
 "#;
     let modl = super::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
-    let modl = ClosConv::run_module(modl);
+    let modl = ClosConv::run(modl);
     println!("{}\n", modl);
 }
 
@@ -234,7 +220,7 @@ end
 "#;
     let modl = super::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
-    let modl = ClosConv::run_module(modl);
+    let modl = ClosConv::run(modl);
     println!("{}\n", modl);
 }
 
@@ -261,6 +247,6 @@ end
 "#;
     let modl = super::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
-    let modl = ClosConv::run_module(modl);
+    let modl = ClosConv::run(modl);
     println!("{}\n", modl);
 }

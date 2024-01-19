@@ -83,20 +83,7 @@ impl LifetimeScan {
 pub struct RegAlloc {}
 
 impl RegAlloc {
-    pub fn run(blk: &mut Block) {
-        let mut pass = LifetimeScan {
-            life_span: HashMap::new(),
-        };
-        for (idx, ins) in blk.code.iter().enumerate() {
-            pass.extend_span(ins, idx);
-        }
-        let vec = life_span_to_vec(pass.life_span);
-        let (max_reg, reg_map) = reg_alloc(&vec);
-        blk.max_reg = max_reg;
-        reg_rename(blk, &reg_map)
-    }
-
-    pub fn run_module(modl: &mut Module) {
+    pub fn run(modl: &mut Module) {
         for (_, blk) in modl.blks.iter_mut() {
             let life = get_life_span(&blk);
             let life_vec = life_span_to_vec(life);
@@ -211,8 +198,8 @@ end
 "#;
     let modl = crate::optimize::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
-    let mut modl = super::codegen::Codegen::run_module(&modl);
+    let mut modl = super::codegen::Codegen::run(&modl);
     println!("{}", modl);
-    RegAlloc::run_module(&mut modl);
+    RegAlloc::run(&mut modl);
     println!("{}", modl);
 }

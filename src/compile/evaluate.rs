@@ -216,13 +216,13 @@ end
 "#;
     let modl = crate::optimize::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
-    let modl = crate::optimize::closure::ClosConv::run_module(modl);
+    let modl = crate::optimize::closure::ClosConv::run(modl);
     println!("{}\n", modl);
-    let mut modl = crate::compile::codegen::Codegen::run_module(&modl);
+    let mut modl = crate::compile::codegen::Codegen::run(&modl);
     println!("{}", modl);
-    super::reg_alloc::RegAlloc::run_module(&mut modl);
+    super::reg_alloc::RegAlloc::run(&mut modl);
     println!("{}", modl);
-    let (code, map) = super::linking::Linker::run_module(&modl);
+    let (code, map) = super::linking::Linker::run(&modl);
     for (i, line) in code.iter().enumerate() {
         println!("{i}:\t{:?}", line);
     }

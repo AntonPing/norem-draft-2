@@ -9,19 +9,7 @@ pub struct Linker {
 }
 
 impl Linker {
-    pub fn run(blks: &Vec<Block>) -> (Vec<Instr>, HashMap<Ident, usize>) {
-        let mut pass = Linker {
-            code: Vec::new(),
-            addr_map: HashMap::new(),
-        };
-        for blk in blks.iter() {
-            pass.scan_addr(blk);
-        }
-        pass.replace_addr();
-        (pass.code, pass.addr_map)
-    }
-
-    pub fn run_module(modl: &Module) -> (Vec<Instr>, HashMap<Ident, usize>) {
+    pub fn run(modl: &Module) -> (Vec<Instr>, HashMap<Ident, usize>) {
         let mut pass = Linker {
             code: Vec::new(),
             addr_map: HashMap::new(),
@@ -85,9 +73,9 @@ end
 "#;
     let modl = crate::optimize::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
-    let modl = crate::compile::codegen::Codegen::run_module(&modl);
+    let modl = crate::compile::codegen::Codegen::run(&modl);
     println!("{}\n", modl);
-    let (code, _) = Linker::run_module(&modl);
+    let (code, _) = Linker::run(&modl);
     for line in code {
         println!("{:?}", line);
     }

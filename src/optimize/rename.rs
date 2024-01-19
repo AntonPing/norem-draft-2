@@ -7,14 +7,7 @@ pub struct Renamer {
 }
 
 impl Renamer {
-    pub fn run(modl: &mut Expr) {
-        let mut pass = Renamer {
-            context: EnvMap::new(),
-        };
-        pass.visit_expr(modl);
-    }
-
-    pub fn run_module(modl: &mut Module) {
+    pub fn run(modl: &mut Module) {
         let mut pass = Renamer {
             context: EnvMap::new(),
         };
@@ -130,6 +123,6 @@ end
 "#;
     let mut modl = super::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
-    Renamer::run_module(&mut modl);
+    Renamer::run(&mut modl);
     println!("{}\n", modl);
 }

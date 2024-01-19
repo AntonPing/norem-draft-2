@@ -10,21 +10,7 @@ pub struct Codegen {
     reg_map: HashMap<Ident, Reg>,
 }
 impl Codegen {
-    pub fn run(decls: &Vec<Decl>) -> Vec<Block> {
-        let mut pass = Codegen {
-            code: Vec::new(),
-            blocks: Vec::new(),
-            max_reg: 0,
-            reg_map: HashMap::new(),
-        };
-        for decl in decls {
-            pass.visit_decl(decl);
-        }
-
-        pass.blocks
-    }
-
-    pub fn run_module(modl: &anf::Module) -> Module {
+    pub fn run(modl: &anf::Module) -> Module {
         let mut pass = Codegen {
             code: Vec::new(),
             blocks: Vec::new(),
@@ -237,6 +223,6 @@ end
 "#;
     let modl = crate::optimize::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
-    let modl = Codegen::run_module(&modl);
+    let modl = Codegen::run(&modl);
     println!("{}\n", modl);
 }
