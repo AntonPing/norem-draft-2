@@ -426,23 +426,17 @@ impl<'src> Parser<'src> {
     fn parse_module(&mut self) -> Option<Module> {
         self.match_token(Token::Module)?;
         let name = self.parse_ident()?;
-        self.match_token(Token::Begin)?;
-
+        self.match_token(Token::Where)?;
         let mut decls: Vec<Decl> = Vec::new();
-
         loop {
             match self.peek_token() {
                 Token::Function => {
                     let res = self.parse_decl()?;
                     decls.push(res)
                 }
-                Token::End => {
-                    break;
-                }
-                _tok => return None,
+                _tok => break,
             }
         }
-        self.match_token(Token::End)?;
         self.match_token(Token::EndOfFile)?;
         Some(Module { name, decls })
     }
@@ -470,19 +464,17 @@ fn parser_test() {
         test block comment
     */
 */
-module test
+module test where
+function f(x: Int) -> Int
 begin
-    function f(x: Int) -> Int
-    begin
-        let f = fn(x) => @iadd(x,1);
-        let res = f(42);
-        res
-    end
-    function g(x: Int) -> Int
-    begin
-        let r = @iadd(x, 1);
-        r
-    end
+    let f = fn(x) => @iadd(x,1);
+    let res = f(42);
+    res
+end
+function g(x: Int) -> Int
+begin
+    let r = @iadd(x, 1);
+    r
 end
 "#;
     let mut par = Parser::new(s);

@@ -53,6 +53,8 @@ pub enum Token {
     Datatype,
     #[token("module")]
     Module,
+    #[token("where")]
+    Where,
     #[token("_")]
     Wild,
     #[token("+")]

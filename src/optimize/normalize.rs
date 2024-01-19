@@ -154,19 +154,17 @@ impl Normalizer {
 #[ignore = "just to see result"]
 fn normalize_test() {
     let s = r#"
-module test
+module test where
+function f(x: Int) -> Int
 begin
-    function f(x: Int) -> Int
-    begin
-        let f = fn(x) => @iadd(x,1);
-        let res = f(42);
-        res
-    end
-    function g(x: Int) -> Int
-    begin
-        let r = @iadd(x, 1);
-        r
-    end
+    let f = fn(x) => @iadd(x,1);
+    let res = f(42);
+    res
+end
+function g(x: Int) -> Int
+begin
+    let r = @iadd(x, 1);
+    r
 end
 "#;
     let mut modl = crate::syntax::parser::parse_module(s).unwrap();

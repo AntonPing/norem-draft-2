@@ -171,19 +171,17 @@ pub fn check_module(modl: &Module) -> CheckResult<()> {
 #[ignore = "just to see result"]
 fn check_test() {
     let s = r#"
-module test
+module test where
+function f(x: Int) -> Int
 begin
-    function f(x: Int) -> Int
-    begin
-        let h = fn(x) => @iadd(x, 1);
-        let r = g(x);
-        r
-    end
-    function g(x: Int) -> Int
-    begin
-        let r = @iadd(x, 1);
-        r
-    end
+    let h = fn(x) => @iadd(x, 1);
+    let r = g(x);
+    r
+end
+function g(x: Int) -> Int
+begin
+    let r = @iadd(x, 1);
+    r
 end
 "#;
 
