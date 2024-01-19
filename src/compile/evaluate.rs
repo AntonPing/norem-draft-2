@@ -47,7 +47,7 @@ fn alloc_memory(size: usize) -> Value {
     Value::Ptr(ptr.as_mut_ptr())
 }
 
-pub struct Runner {
+pub struct Evaluator {
     code: Vec<Instr>,
     code_ptr: usize,
     base_ptr: usize,
@@ -57,7 +57,7 @@ pub struct Runner {
     frames: Vec<(usize, usize)>,
 }
 
-impl std::fmt::Display for Runner {
+impl std::fmt::Display for Evaluator {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "-----code-----\n")?;
         for i in self.code_ptr..self.code_ptr + 5 {
@@ -89,9 +89,9 @@ impl std::fmt::Display for Runner {
     }
 }
 
-impl Runner {
-    pub fn new(code: Vec<Instr>, code_ptr: usize) -> Runner {
-        Runner {
+impl Evaluator {
+    pub fn new(code: Vec<Instr>, code_ptr: usize) -> Evaluator {
+        Evaluator {
             code,
             code_ptr,
             base_ptr: 0,
@@ -204,45 +204,30 @@ impl Runner {
 #[ignore = "just to see result"]
 fn execute_test() {
     let s = r#"
-decl
-    fn f(x) begin
-        let y = @iadd(x, 1);
-        return y;
-    end
-    fn main() begin
-        let z = f(42);
-        return z;
-    end
-in
-    return 42;
+module test where
+fn f(x) begin
+    let y = @iadd(x, 1);
+    return y;
+end
+fn main() begin
+    let z = f(42);
+    return z;
 end
 "#;
-    let expr = crate::optimize::parser::parse_expr(s).unwrap();
-    println!("{}\n", expr);
-    let (decls, expr) = crate::optimize::closure::ClosConv::run(expr);
-    for decl in decls.iter() {
-        println!("{}\n", decl);
-    }
-    println!("{}\n", expr);
-
-    let mut blks = crate::compile::codegen::Codegen::run(&decls);
-    for blk in blks.iter() {
-        println!("{}", blk);
-    }
-
-    blks.iter_mut()
-        .for_each(|blk| super::reg_alloc::RegAlloc::run(blk));
-    for blk in blks.iter() {
-        println!("{}", blk);
-    }
-
-    let (code, map) = super::linking::Linker::run(&blks);
+    let modl = crate::optimize::parser::parse_module(s).unwrap();
+    println!("{}\n", modl);
+    let modl = crate::optimize::closure::ClosConv::run_module(modl);
+    println!("{}\n", modl);
+    let mut modl = crate::compile::codegen::Codegen::run_module(&modl);
+    println!("{}", modl);
+    super::reg_alloc::RegAlloc::run_module(&mut modl);
+    println!("{}", modl);
+    let (code, map) = super::linking::Linker::run_module(&modl);
     for (i, line) in code.iter().enumerate() {
         println!("{i}:\t{:?}", line);
     }
-
     let (_, entry) = map.iter().find(|(k, _)| k.as_str() == "main").unwrap();
-    let mut rnr = Runner::new(code, *entry);
+    let mut rnr = Evaluator::new(code, *entry);
     unsafe {
         rnr.run();
     }
