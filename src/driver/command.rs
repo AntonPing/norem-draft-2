@@ -1,8 +1,9 @@
 use std::fs;
 
+use crate::compile::evaluate::Value;
 use crate::{compile, optimize, syntax, typing};
 
-pub fn compile_file(path: &String) {
+pub fn compile_file(path: &String) -> Value {
     let source = fs::read_to_string(path).expect("failed to read file!");
     let mut modl = syntax::parser::parse_module(&source).expect("failed to parse module!");
     syntax::rename::rename_module(&mut modl).expect("failed in identifier renaming phase!");
@@ -21,5 +22,6 @@ pub fn compile_file(path: &String) {
     let (code, map) = compile::linking::Linker::run(&modl);
     let (_, entry) = map.iter().find(|(k, _)| k.as_str() == "main").unwrap();
     let mut evl = compile::evaluate::Evaluator::new(code, *entry);
-    unsafe { evl.run() };
+    let val = unsafe { evl.run() };
+    val
 }

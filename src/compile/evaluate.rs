@@ -1,6 +1,6 @@
 use super::instr::{Instr, Reg};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Value {
     Int(i64),
     Float(f64),
@@ -108,9 +108,9 @@ impl Evaluator {
         &mut self.locals[self.base_ptr + reg.as_usize()]
     }
 
-    pub unsafe fn run(&mut self) {
+    pub unsafe fn run(&mut self) -> Value {
         loop {
-            println!("{}", self);
+            // println!("{}", self);
             match self.code[self.code_ptr] {
                 Instr::LitI(reg, val) => {
                     *self.local_mut(reg) = Value::Int(val as i64);
@@ -187,7 +187,7 @@ impl Evaluator {
                         self.code_ptr = code;
                         self.base_ptr = base;
                     } else {
-                        break;
+                        return self.stack.pop().unwrap();
                     }
                 }
                 Instr::Label(_) | Instr::LitAu(_, _) | Instr::Callu(_) => {
