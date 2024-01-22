@@ -81,6 +81,7 @@ impl Renamer {
                 self.visit_expr(cont);
                 self.context.leave_scope()
             }
+            Expr::Brch { prim, args, conts } => todo!(),
             Expr::Call {
                 bind,
                 func,

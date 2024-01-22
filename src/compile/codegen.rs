@@ -173,6 +173,7 @@ impl Codegen {
                 self.reg_map.insert(*bind, ret);
                 self.visit_expr(cont);
             }
+            Expr::Brch { prim, args, conts } => todo!(),
             Expr::Call {
                 bind,
                 func,

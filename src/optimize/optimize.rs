@@ -146,6 +146,7 @@ impl Optimizer {
                     }
                 }
             }
+            anf::Expr::Brch { prim, args, conts } => todo!(),
             anf::Expr::Call {
                 bind,
                 func,

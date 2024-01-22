@@ -29,6 +29,12 @@ impl fmt::Display for PrimOpr {
     }
 }
 
+impl fmt::Display for BrchOpr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
 impl fmt::Display for Decl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Decl { func, pars, body } = self;
@@ -60,6 +66,7 @@ impl fmt::Display for Expr {
                 let args = args.iter().format(&", ");
                 write!(f, "let {bind} = {prim}({args});{NWLN}{cont}")
             }
+            Expr::Brch { prim, args, conts } => todo!(),
             Expr::Call {
                 bind,
                 func,

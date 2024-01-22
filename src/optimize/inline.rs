@@ -76,6 +76,7 @@ impl InlineScan {
                 args.iter().for_each(|arg| self.visit_atom(arg));
                 self.occur_map.remove(bind);
             }
+            Expr::Brch { prim, args, conts } => todo!(),
             Expr::Call {
                 bind,
                 func,
@@ -181,6 +182,7 @@ impl InlinePerform {
                     cont,
                 }
             }
+            Expr::Brch { prim, args, conts } => todo!(),
             Expr::Call {
                 bind,
                 func,
@@ -225,6 +227,7 @@ fn tailing(expr: Expr, bind: Ident, cont: Expr) -> Expr {
                 cont,
             }
         }
+        Expr::Brch { prim, args, conts } => todo!(),
         Expr::Call {
             bind,
             func,

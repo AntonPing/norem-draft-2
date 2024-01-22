@@ -82,6 +82,27 @@ impl From<ast::PrimOpr> for PrimOpr {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BrchOpr {
+    Ifte,
+    Switch,
+}
+
+impl BrchOpr {
+    pub fn get_arity(&self) -> Option<usize> {
+        match self {
+            BrchOpr::Ifte => Some(1),
+            BrchOpr::Switch => Some(1),
+        }
+    }
+    pub fn get_cont_arity(&self) -> Option<usize> {
+        match self {
+            BrchOpr::Ifte => Some(2),
+            BrchOpr::Switch => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Decl {
     pub func: Ident,
@@ -100,6 +121,11 @@ pub enum Expr {
         prim: PrimOpr,
         args: Vec<Atom>,
         cont: Box<Expr>,
+    },
+    Brch {
+        prim: BrchOpr,
+        args: Vec<Atom>,
+        conts: Vec<Expr>,
     },
     Call {
         bind: Ident,
