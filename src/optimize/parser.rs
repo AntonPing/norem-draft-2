@@ -81,7 +81,7 @@ fn char(input: &str) -> IResult<&str, char> {
     Ok((input, s.parse::<char>().unwrap()))
 }
 
-fn prim(input: &str) -> IResult<&str, PrimOpr> {
+fn prim_opr(input: &str) -> IResult<&str, PrimOpr> {
     let (input, _) = skip_space(input)?;
     alt((
         value(PrimOpr::IAdd, tag("@iadd")),
@@ -90,6 +90,14 @@ fn prim(input: &str) -> IResult<&str, PrimOpr> {
         value(PrimOpr::Move, tag("@move")),
         value(PrimOpr::Record, tag("@record")),
         value(PrimOpr::Select, tag("@select")),
+    ))(input)
+}
+
+fn brch_opr(input: &str) -> IResult<&str, BrchOpr> {
+    let (input, _) = skip_space(input)?;
+    alt((
+        value(BrchOpr::Ifte, tag("ifte")),
+        value(BrchOpr::Switch, tag("switch")),
     ))(input)
 }
 
@@ -112,7 +120,7 @@ fn expr_prim(input: &str) -> IResult<&str, Expr> {
     let (input, _) = skip_space_tag("let", input)?;
     let (input, bind) = ident(input)?;
     let (input, _) = skip_space_tag("=", input)?;
-    let (input, prim) = prim(input)?;
+    let (input, prim) = prim_opr(input)?;
     let (input, _) = skip_space_tag("(", input)?;
     let (input, args) = separated_list0(|input| skip_space_tag(",", input), atom)(input)?;
     let (input, _) = skip_space_tag(")", input)?;
@@ -127,6 +135,22 @@ fn expr_prim(input: &str) -> IResult<&str, Expr> {
             cont: Box::new(cont),
         },
     ))
+}
+
+fn expr_brch(input: &str) -> IResult<&str, Expr> {
+    let (input, prim) = brch_opr(input)?;
+    let (input, _) = skip_space_tag("(", input)?;
+    let (input, args) = separated_list0(|input| skip_space_tag(",", input), atom)(input)?;
+    let (input, _) = skip_space_tag(")", input)?;
+    let (input, _) = skip_space_tag("{", input)?;
+    let (input, conts) = many0(|input| {
+        let (input, _) = skip_space_tag("{", input)?;
+        let (input, res) = expr(input)?;
+        let (input, _) = skip_space_tag("}", input)?;
+        Ok((input, res))
+    })(input)?;
+    let (input, _) = skip_space_tag("}", input)?;
+    Ok((input, Expr::Brch { prim, args, conts }))
 }
 
 fn expr_call(input: &str) -> IResult<&str, Expr> {
@@ -158,7 +182,7 @@ fn expr_retn(input: &str) -> IResult<&str, Expr> {
 }
 
 fn expr(input: &str) -> IResult<&str, Expr> {
-    alt((expr_decls, expr_prim, expr_call, expr_retn))(input)
+    alt((expr_decls, expr_prim, expr_brch, expr_call, expr_retn))(input)
 }
 
 fn decl(input: &str) -> IResult<&str, Decl> {
@@ -207,10 +231,13 @@ end
 fn top2(x) begin
     decl
         fn f(x, y, z) begin
-        return z; 
+            return z; 
         end
         fn g(x, y, z) begin
-            return z; 
+            ifte(x) {
+                { return z; }
+                { return z; }
+            }
         end
     in
         let x = @iadd(1, 2);
