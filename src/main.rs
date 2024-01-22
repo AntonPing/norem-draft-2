@@ -1,3 +1,3 @@
 fn main() {
-    println!("Hello, world!");
+    norem_lang::driver::cli::run_cli();
 }
