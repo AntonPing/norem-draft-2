@@ -1,5 +1,5 @@
 use super::anf::{self, Atom, Module, PrimOpr};
-use crate::utils::ident::Ident;
+use crate::{optimize::anf::BrchOpr, utils::ident::Ident};
 use std::collections::{HashMap, HashSet};
 
 pub struct Optimizer {
@@ -146,7 +146,32 @@ impl Optimizer {
                     }
                 }
             }
-            anf::Expr::Brch { prim, args, conts } => todo!(),
+            anf::Expr::Brch { prim, args, conts } => {
+                assert!(prim.get_arity() == None || prim.get_arity() == Some(args.len()));
+                assert!(
+                    prim.get_cont_arity() == None || prim.get_cont_arity() == Some(conts.len())
+                );
+                let args: Vec<Atom> = args.into_iter().map(|arg| self.visit_atom(arg)).collect();
+                match (prim, &args[..]) {
+                    (BrchOpr::Ifte, [Atom::Bool(true)]) => {
+                        self.visit_expr(conts.into_iter().nth(0).unwrap())
+                    }
+                    (BrchOpr::Ifte, [Atom::Bool(false)]) => {
+                        self.visit_expr(conts.into_iter().nth(1).unwrap())
+                    }
+                    (BrchOpr::Switch, [Atom::Int(n)]) => {
+                        let cont = conts.into_iter().nth(*n as usize).unwrap();
+                        self.visit_expr(cont)
+                    }
+                    _ => {
+                        let conts = conts
+                            .into_iter()
+                            .map(|cont| self.visit_expr(cont))
+                            .collect();
+                        anf::Expr::Brch { prim, args, conts }
+                    }
+                }
+            }
             anf::Expr::Call {
                 bind,
                 func,
