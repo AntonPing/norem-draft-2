@@ -54,7 +54,10 @@ impl LifetimeScan {
                 self.extend_end(&reg2, idx);
                 self.extend_end(&reg3, idx);
             }
-            Instr::IAdd(reg1, reg2, reg3)
+            Instr::ICmpGr(reg1, reg2, reg3)
+            | Instr::ICmpEq(reg1, reg2, reg3)
+            | Instr::ICmpLs(reg1, reg2, reg3)
+            | Instr::IAdd(reg1, reg2, reg3)
             | Instr::ISub(reg1, reg2, reg3)
             | Instr::IMul(reg1, reg2, reg3) => {
                 self.extend_start(&reg1, idx);
@@ -67,14 +70,13 @@ impl LifetimeScan {
             Instr::Pop(reg) => {
                 self.extend_start(&reg, idx);
             }
-            Instr::Call(_) => {}
-            Instr::CallInd(reg) => {
+            Instr::JmpTr(reg, _) | Instr::JmpFl(reg, _) | Instr::CallInd(reg) => {
                 self.extend_end(&reg, idx);
             }
             Instr::Ret(reg) => {
                 self.extend_end(&reg, idx);
             }
-            Instr::Nop => {}
+            Instr::Call(_) | Instr::Jmp(_) | Instr::Nop => {}
         }
     }
 }

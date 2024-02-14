@@ -32,11 +32,17 @@ pub enum Instr<Addr> {
     // LoadI(Reg, Reg, usize),  // r1 = r2[idx];
     Store(Reg, Reg, Reg), // r1[r2] = r3;
     // StoreI(Reg, usize, Reg), // r1[idx] = r3;
+    ICmpGr(Reg, Reg, Reg),
+    ICmpEq(Reg, Reg, Reg),
+    ICmpLs(Reg, Reg, Reg),
     IAdd(Reg, Reg, Reg),
     ISub(Reg, Reg, Reg),
     IMul(Reg, Reg, Reg),
     Push(Reg),
     Pop(Reg),
+    JmpTr(Reg, Addr),
+    JmpFl(Reg, Addr),
+    Jmp(Addr),
     Call(Addr),
     CallInd(Reg),
     Ret(Reg),

@@ -20,6 +20,14 @@ impl Value {
         }
     }
 
+    fn unwrap_bool(&self) -> bool {
+        if let Value::Bool(x) = self {
+            *x
+        } else {
+            panic!("failed to unwrap Value::Bool!");
+        }
+    }
+
     fn unwrap_addr(&self) -> usize {
         if let Value::Addr(x) = self {
             *x
@@ -147,6 +155,18 @@ impl Evaluator {
                     let ptr = ptr.add(self.local(idx).unwrap_int() as usize);
                     *ptr = *self.local_mut(reg);
                 }
+                Instr::ICmpGr(r1, r2, r3) => {
+                    let value = self.local(r2).unwrap_int() > self.local(r3).unwrap_int();
+                    *self.local_mut(r1) = Value::Bool(value);
+                }
+                Instr::ICmpEq(r1, r2, r3) => {
+                    let value = self.local(r2).unwrap_int() == self.local(r3).unwrap_int();
+                    *self.local_mut(r1) = Value::Bool(value);
+                }
+                Instr::ICmpLs(r1, r2, r3) => {
+                    let value = self.local(r2).unwrap_int() < self.local(r3).unwrap_int();
+                    *self.local_mut(r1) = Value::Bool(value);
+                }
                 Instr::IAdd(r1, r2, r3) => {
                     let value = self.local(r2).unwrap_int() + self.local(r3).unwrap_int();
                     *self.local_mut(r1) = Value::Int(value);
@@ -164,6 +184,22 @@ impl Evaluator {
                 }
                 Instr::Pop(reg) => {
                     *self.local_mut(reg) = self.stack.pop().unwrap();
+                }
+                Instr::JmpTr(reg, addr) => {
+                    if self.local(reg).unwrap_bool() {
+                        self.code_ptr = addr;
+                        continue;
+                    }
+                }
+                Instr::JmpFl(reg, addr) => {
+                    if !self.local(reg).unwrap_bool() {
+                        self.code_ptr = addr;
+                        continue;
+                    }
+                }
+                Instr::Jmp(addr) => {
+                    self.code_ptr = addr;
+                    continue;
                 }
                 Instr::Call(addr) => {
                     self.frames.push((self.code_ptr, self.base_ptr));
