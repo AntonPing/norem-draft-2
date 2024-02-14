@@ -76,7 +76,14 @@ impl InlineScan {
                 args.iter().for_each(|arg| self.visit_atom(arg));
                 self.occur_map.remove(bind);
             }
-            Expr::Brch { prim, args, conts } => todo!(),
+            Expr::Brch {
+                prim: _,
+                args,
+                conts,
+            } => {
+                conts.iter().for_each(|cont| self.visit_expr(cont));
+                args.iter().for_each(|arg| self.visit_atom(arg));
+            }
             Expr::Call {
                 bind,
                 func,
@@ -182,7 +189,13 @@ impl InlinePerform {
                     cont,
                 }
             }
-            Expr::Brch { prim, args, conts } => todo!(),
+            Expr::Brch { prim, args, conts } => {
+                let conts = conts
+                    .into_iter()
+                    .map(|cont| self.visit_expr(cont))
+                    .collect();
+                Expr::Brch { prim, args, conts }
+            }
             Expr::Call {
                 bind,
                 func,
@@ -207,6 +220,60 @@ impl InlinePerform {
     }
 }
 
+fn insert_join(expr: Expr, join: Ident) -> Expr {
+    match expr {
+        Expr::Decls { decls, cont } => {
+            let cont = Box::new(insert_join(*cont, join));
+            Expr::Decls { decls, cont }
+        }
+        Expr::Prim {
+            bind,
+            prim,
+            args,
+            cont,
+        } => {
+            let cont = Box::new(insert_join(*cont, join));
+            Expr::Prim {
+                bind,
+                prim,
+                args,
+                cont,
+            }
+        }
+        Expr::Brch { prim, args, conts } => {
+            let conts = conts
+                .into_iter()
+                .map(|cont| insert_join(cont, join))
+                .collect();
+            Expr::Brch { prim, args, conts }
+        }
+        Expr::Call {
+            bind,
+            func,
+            args,
+            cont,
+        } => {
+            let cont = Box::new(insert_join(*cont, join));
+            Expr::Call {
+                bind,
+                func,
+                args,
+                cont,
+            }
+        }
+        Expr::Retn { res } => {
+            let j = Ident::fresh(&"j");
+            let r = Ident::fresh(&"r");
+            Expr::Call {
+                bind: r,
+                func: Atom::Var(j),
+                args: vec![res],
+                cont: Box::new(Expr::Retn { res: Atom::Var(r) }),
+            }
+        }
+    }
+}
+
 fn tailing(expr: Expr, bind: Ident, cont: Expr) -> Expr {
     match expr {
         Expr::Decls { decls, cont: cont2 } => {
@@ -227,7 +294,19 @@ fn tailing(expr: Expr, bind: Ident, cont: Expr) -> Expr {
                 cont,
             }
         }
-        Expr::Brch { prim, args, conts } => todo!(),
+        expr @ Expr::Brch { .. } => {
+            let j = Ident::fresh(&"j");
+            let decl = Decl {
+                func: j,
+                pars: vec![bind],
+                body: cont,
+            };
+            let cont = Box::new(insert_join(expr, j));
+            Expr::Decls {
+                decls: vec![decl],
+                cont,
+            }
+        }
         Expr::Call {
             bind,
             func,
