@@ -19,13 +19,12 @@ impl Reg {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
-pub enum Instr {
+pub enum Instr<Addr> {
     Label(Ident),
     LitI(Reg, i64),
     LitF(Reg, f64),
     LitC(Reg, char),
-    LitAu(Reg, Ident),
-    LitA(Reg, usize),
+    LitA(Reg, Addr),
     Move(Reg, Reg),
     Bump(usize),
     Alloc(Reg, usize),   // reg = new[len]
@@ -38,8 +37,7 @@ pub enum Instr {
     IMul(Reg, Reg, Reg),
     Push(Reg),
     Pop(Reg),
-    Callu(Ident),
-    Call(usize),
+    Call(Addr),
     CallInd(Reg),
     Ret(Reg),
     Nop,
@@ -49,7 +47,7 @@ pub enum Instr {
 pub struct Block {
     pub func: Ident,
     pub max_reg: usize,
-    pub code: Vec<Instr>,
+    pub code: Vec<Instr<Ident>>,
 }
 
 pub struct Module {

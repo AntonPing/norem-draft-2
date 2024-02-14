@@ -48,7 +48,7 @@ fn alloc_memory(size: usize) -> Value {
 }
 
 pub struct Evaluator {
-    code: Vec<Instr>,
+    code: Vec<Instr<usize>>,
     code_ptr: usize,
     base_ptr: usize,
     stack: Vec<Value>,
@@ -90,7 +90,7 @@ impl std::fmt::Display for Evaluator {
 }
 
 impl Evaluator {
-    pub fn new(code: Vec<Instr>, code_ptr: usize) -> Evaluator {
+    pub fn new(code: Vec<Instr<usize>>, code_ptr: usize) -> Evaluator {
         Evaluator {
             code,
             code_ptr,
@@ -190,7 +190,7 @@ impl Evaluator {
                         return self.stack.pop().unwrap();
                     }
                 }
-                Instr::Label(_) | Instr::LitAu(_, _) | Instr::Callu(_) => {
+                Instr::Label(_) => {
                     panic!("can't evaluate an unlinked instruction!")
                 }
                 Instr::Nop => {}

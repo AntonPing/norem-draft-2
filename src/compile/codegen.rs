@@ -4,7 +4,7 @@ use crate::utils::ident::Ident;
 use std::collections::HashMap;
 
 pub struct Codegen {
-    code: Vec<Instr>,
+    code: Vec<Instr<Ident>>,
     blocks: Vec<Block>,
     max_reg: usize,
     reg_map: HashMap<Ident, Reg>,
@@ -49,7 +49,7 @@ impl Codegen {
                 }
                 Err(addr) => {
                     let reg = self.new_reg();
-                    self.code.push(Instr::LitAu(reg, addr));
+                    self.code.push(Instr::LitA(reg, addr));
                     reg
                 }
             }
@@ -189,7 +189,7 @@ impl Codegen {
                         self.code.push(Instr::CallInd(reg));
                     }
                     Err(addr) => {
-                        self.code.push(Instr::Callu(addr));
+                        self.code.push(Instr::Call(addr));
                     }
                 }
                 let ret = self.new_reg();

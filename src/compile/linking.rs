@@ -4,52 +4,65 @@ use std::collections::HashMap;
 
 use super::instr::Module;
 pub struct Linker {
-    code: Vec<Instr>,
+    code_before: Vec<Instr<Ident>>,
+    code_after: Vec<Instr<usize>>,
     addr_map: HashMap<Ident, usize>,
 }
 
 impl Linker {
-    pub fn run(modl: &Module) -> (Vec<Instr>, HashMap<Ident, usize>) {
+    pub fn run(modl: &Module) -> (Vec<Instr<usize>>, HashMap<Ident, usize>) {
         let mut pass = Linker {
-            code: Vec::new(),
+            code_before: Vec::new(),
+            code_after: Vec::new(),
             addr_map: HashMap::new(),
         };
         for (_, blk) in modl.blks.iter() {
             pass.scan_addr(blk);
         }
         pass.replace_addr();
-        (pass.code, pass.addr_map)
+        (pass.code_after, pass.addr_map)
     }
 
     fn scan_addr(&mut self, blk: &Block) {
-        self.addr_map.insert(blk.func, self.code.len());
-        self.code.push(Instr::Bump(blk.max_reg));
+        self.addr_map.insert(blk.func, self.code_before.len());
+        self.code_before.push(Instr::Bump(blk.max_reg));
         for ins in blk.code.iter() {
-            match ins {
+            match *ins {
                 Instr::Label(label) => {
                     assert!(!self.addr_map.contains_key(&label));
-                    self.addr_map.insert(*label, self.code.len());
+                    self.addr_map.insert(label, self.code_before.len());
                 }
                 _ => {
-                    self.code.push(*ins);
+                    self.code_before.push(*ins);
                 }
             }
         }
     }
 
     fn replace_addr(&mut self) {
-        for ins in self.code.iter_mut() {
-            match ins {
-                Instr::LitAu(reg, addr) => {
-                    let addr = self.addr_map.get(addr).unwrap();
-                    *ins = Instr::LitA(*reg, *addr);
-                }
-                Instr::Callu(addr) => {
-                    let addr = self.addr_map.get(addr).unwrap();
-                    *ins = Instr::Call(*addr);
-                }
-                _ => {}
-            }
+        for ins in self.code_before.iter() {
+            let ins2 = match *ins {
+                Instr::Label(_) => unreachable!(),
+                Instr::LitI(reg, val) => Instr::LitI(reg, val),
+                Instr::LitF(reg, val) => Instr::LitF(reg, val),
+                Instr::LitC(reg, val) => Instr::LitC(reg, val),
+                Instr::LitA(reg, addr) => Instr::LitA(reg, self.addr_map[&addr]),
+                Instr::Move(reg1, reg2) => Instr::Move(reg1, reg2),
+                Instr::Bump(len) => Instr::Bump(len),
+                Instr::Alloc(reg, len) => Instr::Alloc(reg, len),
+                Instr::Load(reg1, reg2, reg3) => Instr::Load(reg1, reg2, reg3),
+                Instr::Store(reg1, reg2, reg3) => Instr::Store(reg1, reg2, reg3),
+                Instr::IAdd(reg1, reg2, reg3) => Instr::IAdd(reg1, reg2, reg3),
+                Instr::ISub(reg1, reg2, reg3) => Instr::ISub(reg1, reg2, reg3),
+                Instr::IMul(reg1, reg2, reg3) => Instr::IMul(reg1, reg2, reg3),
+                Instr::Push(reg) => Instr::Push(reg),
+                Instr::Pop(reg) => Instr::Pop(reg),
+                Instr::Call(addr) => Instr::Call(self.addr_map[&addr]),
+                Instr::CallInd(reg) => Instr::CallInd(reg),
+                Instr::Ret(reg) => Instr::Ret(reg),
+                Instr::Nop => Instr::Nop,
+            };
+            self.code_after.push(ins2);
         }
     }
 }

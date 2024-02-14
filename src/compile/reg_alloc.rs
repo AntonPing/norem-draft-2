@@ -27,13 +27,12 @@ impl LifetimeScan {
         }
     }
 
-    fn extend_span(&mut self, ins: &Instr, idx: usize) {
+    fn extend_span<Addr>(&mut self, ins: &Instr<Addr>, idx: usize) {
         match ins {
             Instr::Label(_) => {}
             Instr::LitI(reg, _)
             | Instr::LitF(reg, _)
             | Instr::LitC(reg, _)
-            | Instr::LitAu(reg, _)
             | Instr::LitA(reg, _) => {
                 self.extend_start(&reg, idx);
             }
@@ -68,7 +67,7 @@ impl LifetimeScan {
             Instr::Pop(reg) => {
                 self.extend_start(&reg, idx);
             }
-            Instr::Callu(_) | Instr::Call(_) => {}
+            Instr::Call(_) => {}
             Instr::CallInd(reg) => {
                 self.extend_end(&reg, idx);
             }
@@ -153,7 +152,6 @@ fn reg_rename(blk: &mut Block, map: &HashMap<Reg, Reg>) {
             | Instr::LitF(reg, _)
             | Instr::LitC(reg, _)
             | Instr::LitA(reg, _)
-            | Instr::LitAu(reg, _)
             | Instr::Alloc(reg, _)
             | Instr::Push(reg)
             | Instr::Pop(reg)
