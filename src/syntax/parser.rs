@@ -235,6 +235,22 @@ impl<'src> Parser<'src> {
                 let span = Span { start, end };
                 Some(Expr::Func { pars, body, span })
             }
+            Token::If => {
+                self.match_token(Token::If)?;
+                let cond = Box::new(self.parse_expr()?);
+                self.match_token(Token::Then)?;
+                let trbr = Box::new(self.parse_expr()?);
+                self.match_token(Token::Else)?;
+                let flbr = Box::new(self.parse_expr()?);
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Some(Expr::Ifte {
+                    cond,
+                    trbr,
+                    flbr,
+                    span,
+                })
+            }
             Token::Begin => self.parse_block(),
             Token::LParen => {
                 let res = self.surround(Token::LParen, Token::RParen, Self::parse_expr)?;
@@ -469,6 +485,7 @@ function f(x: Int) -> Int
 begin
     let f = fn(x) => @iadd(x,1);
     let res = f(42);
+    let test = if @iadd(1, 2) then 3 else 4;
     res
 end
 function g(x: Int) -> Int
