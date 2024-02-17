@@ -95,7 +95,13 @@ impl TypeChecker {
                 flbr,
                 span: _,
             } => {
-                todo!()
+                let cond_ty = self.check_expr(cond)?;
+                self.solver
+                    .unify(&cond_ty, &UnifyType::Lit(LitType::TyBool))?;
+                let trbr_ty = self.check_expr(trbr)?;
+                let flbr_ty = self.check_expr(flbr)?;
+                self.solver.unify(&trbr_ty, &flbr_ty)?;
+                Ok(trbr_ty)
             }
             Expr::Stmt {
                 stmt,
