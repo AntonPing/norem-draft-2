@@ -99,7 +99,53 @@ impl Normalizer {
             ast::Expr::Ifte {
                 cond, trbr, flbr, ..
             } => {
-                todo!()
+                // normalize(if e1 then e2 else e3, hole, ctx) =
+                // letjoin j(hole) = ctx in
+                //      normalize(e1, x1,
+                //          ifte x1 {
+                //              normalize(e2, x2, j(x2))
+                //              normalize(e3, x3, j(x3))
+                //          } )
+                let j = Ident::fresh(&"j");
+                let x1 = Ident::fresh(&"x");
+                let x2 = Ident::fresh(&"x");
+                let x3 = Ident::fresh(&"x");
+                let r2 = Ident::fresh(&"r");
+                let r3 = Ident::fresh(&"r");
+                let ifte = anf::Expr::Brch {
+                    prim: anf::BrchOpr::Ifte,
+                    args: vec![Atom::Var(x1)],
+                    conts: vec![
+                        self.normalize_expr_with_cont(
+                            trbr,
+                            &x2,
+                            anf::Expr::Call {
+                                bind: r2,
+                                func: Atom::Var(j),
+                                args: vec![Atom::Var(x2)],
+                                cont: Box::new(anf::Expr::Retn { res: Atom::Var(r2) }),
+                            },
+                        ),
+                        self.normalize_expr_with_cont(
+                            flbr,
+                            &x3,
+                            anf::Expr::Call {
+                                bind: r3,
+                                func: Atom::Var(j),
+                                args: vec![Atom::Var(x3)],
+                                cont: Box::new(anf::Expr::Retn { res: Atom::Var(r3) }),
+                            },
+                        ),
+                    ],
+                };
+                anf::Expr::Decls {
+                    decls: vec![anf::Decl {
+                        func: j,
+                        pars: vec![*bind],
+                        body: rest,
+                    }],
+                    cont: Box::new(self.normalize_expr_with_cont(cond, &x1, ifte)),
+                }
             }
             ast::Expr::Stmt { stmt, cont, .. } => {
                 // normalize(let x = e1; e2, hole, ctx) =
