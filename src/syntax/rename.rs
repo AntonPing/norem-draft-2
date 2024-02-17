@@ -64,6 +64,17 @@ impl Renamer {
                 }
                 Ok(())
             }
+            Expr::Ifte {
+                cond,
+                trbr,
+                flbr,
+                span: _,
+            } => {
+                self.rename_expr(cond)?;
+                self.rename_expr(trbr)?;
+                self.rename_expr(flbr)?;
+                Ok(())
+            }
             Expr::Stmt {
                 stmt,
                 cont,

@@ -89,6 +89,14 @@ impl TypeChecker {
                 )?;
                 Ok(res_ty)
             }
+            Expr::Ifte {
+                cond,
+                trbr,
+                flbr,
+                span: _,
+            } => {
+                todo!()
+            }
             Expr::Stmt {
                 stmt,
                 cont,

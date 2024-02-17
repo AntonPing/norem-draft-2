@@ -81,6 +81,12 @@ pub enum Expr {
         args: Vec<Expr>,
         span: Span,
     },
+    Ifte {
+        cond: Box<Expr>,
+        trbr: Box<Expr>,
+        flbr: Box<Expr>,
+        span: Span,
+    },
     Stmt {
         stmt: Box<Stmt>,
         cont: Box<Expr>,
@@ -122,6 +128,7 @@ impl Expr {
             Expr::Prim { span, .. } => span,
             Expr::Func { span, .. } => span,
             Expr::App { span, .. } => span,
+            Expr::Ifte { span, .. } => span,
             Expr::Stmt { span, .. } => span,
         }
     }

@@ -96,11 +96,12 @@ impl Normalizer {
                         |rest, (bind, arg)| self.normalize_expr_with_cont(arg, bind, rest),
                     )
             }
-            ast::Expr::Stmt {
-                stmt,
-                cont,
-                span: _,
+            ast::Expr::Ifte {
+                cond, trbr, flbr, ..
             } => {
+                todo!()
+            }
+            ast::Expr::Stmt { stmt, cont, .. } => {
                 // normalize(let x = e1; e2, hole, ctx) =
                 // normalize(e1, x, normalize(e2, hole, ctx)
                 let cont = self.normalize_expr_with_cont(cont, bind, rest);
