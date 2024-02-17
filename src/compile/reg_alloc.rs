@@ -157,6 +157,8 @@ fn reg_rename(blk: &mut Block, map: &HashMap<Reg, Reg>) {
             | Instr::Alloc(reg, _)
             | Instr::Push(reg)
             | Instr::Pop(reg)
+            | Instr::JmpTr(reg, _)
+            | Instr::JmpFl(reg, _)
             | Instr::CallInd(reg)
             | Instr::Ret(reg) => {
                 *reg = map[&reg];
@@ -169,12 +171,15 @@ fn reg_rename(blk: &mut Block, map: &HashMap<Reg, Reg>) {
             | Instr::Store(reg1, reg2, reg3)
             | Instr::IAdd(reg1, reg2, reg3)
             | Instr::ISub(reg1, reg2, reg3)
-            | Instr::IMul(reg1, reg2, reg3) => {
+            | Instr::IMul(reg1, reg2, reg3)
+            | Instr::ICmpGr(reg1, reg2, reg3)
+            | Instr::ICmpEq(reg1, reg2, reg3)
+            | Instr::ICmpLs(reg1, reg2, reg3) => {
                 *reg1 = map[&reg1];
                 *reg2 = map[&reg2];
                 *reg3 = map[&reg3];
             }
-            _ => {}
+            Instr::Label(_) | Instr::Bump(_) | Instr::Jmp(_) | Instr::Call(_) | Instr::Nop => {}
         }
     }
 }

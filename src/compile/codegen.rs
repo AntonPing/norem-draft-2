@@ -132,25 +132,28 @@ impl Codegen {
                     }
                     Some(2) => {
                         assert_eq!(args.len(), 2);
-                        match (prim, args[0], args[1]) {
-                            (PrimOpr::IAdd, arg1, arg2) => {
-                                let arg1 = self.visit_atom(&arg1);
-                                let arg2 = self.visit_atom(&arg2);
+                        let arg1 = self.visit_atom(&args[0]);
+                        let arg2 = self.visit_atom(&args[1]);
+                        match prim {
+                            PrimOpr::IAdd => {
                                 self.code.push(Instr::IAdd(ret, arg1, arg2));
                             }
-                            (PrimOpr::ISub, arg1, arg2) => {
-                                let arg1 = self.visit_atom(&arg1);
-                                let arg2 = self.visit_atom(&arg2);
+                            PrimOpr::ISub => {
                                 self.code.push(Instr::ISub(ret, arg1, arg2));
                             }
-                            (PrimOpr::IMul, arg1, arg2) => {
-                                let arg1 = self.visit_atom(&arg1);
-                                let arg2 = self.visit_atom(&arg2);
+                            PrimOpr::IMul => {
                                 self.code.push(Instr::IMul(ret, arg1, arg2));
                             }
-                            (PrimOpr::Select, arg1, arg2) => {
-                                let arg1 = self.visit_atom(&arg1);
-                                let arg2 = self.visit_atom(&arg2);
+                            PrimOpr::ICmpLs => {
+                                self.code.push(Instr::ICmpLs(ret, arg1, arg2));
+                            }
+                            PrimOpr::ICmpEq => {
+                                self.code.push(Instr::ICmpEq(ret, arg1, arg2));
+                            }
+                            PrimOpr::ICmpGr => {
+                                self.code.push(Instr::ICmpGr(ret, arg1, arg2));
+                            }
+                            PrimOpr::Select => {
                                 self.code.push(Instr::Load(ret, arg1, arg2));
                             }
                             _ => unreachable!(),
