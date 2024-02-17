@@ -50,9 +50,12 @@ impl TypeChecker {
                         self.solver.unify(&arg1, &UnifyType::Lit(LitType::TyInt))?;
                         Ok(UnifyType::Lit(LitType::TyInt))
                     }
-                    PrimOpr::Move => {
+                    PrimOpr::ICmpLs | PrimOpr::ICmpEq | PrimOpr::ICmpGr => {
                         let arg0 = self.check_expr(&args[0])?;
-                        Ok(arg0)
+                        self.solver.unify(&arg0, &UnifyType::Lit(LitType::TyInt))?;
+                        let arg1 = self.check_expr(&args[1])?;
+                        self.solver.unify(&arg1, &UnifyType::Lit(LitType::TyInt))?;
+                        Ok(UnifyType::Lit(LitType::TyBool))
                     }
                 }
             }

@@ -53,6 +53,9 @@ pub enum PrimOpr {
     IAdd,
     ISub,
     IMul,
+    ICmpLs,
+    ICmpEq,
+    ICmpGr,
     Move,
     Record,
     Select,
@@ -64,6 +67,9 @@ impl PrimOpr {
             PrimOpr::IAdd => Some(2),
             PrimOpr::ISub => Some(2),
             PrimOpr::IMul => Some(2),
+            PrimOpr::ICmpLs => Some(2),
+            PrimOpr::ICmpEq => Some(2),
+            PrimOpr::ICmpGr => Some(2),
             PrimOpr::Move => Some(1),
             PrimOpr::Record => None,
             PrimOpr::Select => Some(2),
@@ -75,9 +81,11 @@ impl From<ast::PrimOpr> for PrimOpr {
     fn from(lit: ast::PrimOpr) -> Self {
         match lit {
             ast::PrimOpr::IAdd => PrimOpr::IAdd,
-            ast::PrimOpr::ISub => PrimOpr::IAdd,
-            ast::PrimOpr::IMul => PrimOpr::IAdd,
-            ast::PrimOpr::Move => PrimOpr::Move,
+            ast::PrimOpr::ISub => PrimOpr::ISub,
+            ast::PrimOpr::IMul => PrimOpr::IMul,
+            ast::PrimOpr::ICmpLs => PrimOpr::ICmpLs,
+            ast::PrimOpr::ICmpEq => PrimOpr::ICmpEq,
+            ast::PrimOpr::ICmpGr => PrimOpr::ICmpGr,
         }
     }
 }

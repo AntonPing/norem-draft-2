@@ -174,6 +174,9 @@ impl<'src> Parser<'src> {
                     "@iadd" => Some(PrimOpr::IAdd),
                     "@isub" => Some(PrimOpr::ISub),
                     "@imul" => Some(PrimOpr::IMul),
+                    "@icmpls" => Some(PrimOpr::ICmpLs),
+                    "@icmpeq" => Some(PrimOpr::ICmpEq),
+                    "@icmpgr" => Some(PrimOpr::ICmpGr),
                     _s => None,
                 }
             }
@@ -485,7 +488,7 @@ function f(x: Int) -> Int
 begin
     let f = fn(x) => @iadd(x,1);
     let res = f(42);
-    let test = if @iadd(1, 2) then 3 else 4;
+    let test = if @icmpls(1, 2) then 3 else 4;
     res
 end
 function g(x: Int) -> Int

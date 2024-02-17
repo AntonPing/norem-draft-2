@@ -36,7 +36,9 @@ pub enum PrimOpr {
     IAdd,
     ISub,
     IMul,
-    Move,
+    ICmpLs,
+    ICmpEq,
+    ICmpGr,
 }
 
 impl PrimOpr {
@@ -45,7 +47,9 @@ impl PrimOpr {
             PrimOpr::IAdd => 2,
             PrimOpr::ISub => 2,
             PrimOpr::IMul => 2,
-            PrimOpr::Move => 1,
+            PrimOpr::ICmpLs => 2,
+            PrimOpr::ICmpEq => 2,
+            PrimOpr::ICmpGr => 2,
         }
     }
 }
