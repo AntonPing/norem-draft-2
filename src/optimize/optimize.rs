@@ -168,6 +168,7 @@ impl Optimizer {
                             .into_iter()
                             .map(|cont| self.visit_expr(cont))
                             .collect();
+                        args.iter().for_each(|arg| self.mark_used(arg));
                         anf::Expr::Brch { prim, args, conts }
                     }
                 }
