@@ -231,10 +231,37 @@ impl InlinePerform {
     }
 }
 
-fn insert_join(expr: Expr, join: Ident) -> Expr {
+fn continue_with(joins: &mut HashSet<Ident>, expr: Expr, hole: Ident, rest: Expr) -> Expr {
     match expr {
         Expr::Decls { decls, cont } => {
-            let cont = Box::new(insert_join(*cont, join));
+            for decl in decls.iter() {
+                if decl.info == CallInfo::JoinPoint {
+                    joins.insert(decl.func);
+                }
+            }
+            let decls = decls
+                .into_iter()
+                .map(|decl| {
+                    if decl.info == CallInfo::JoinPoint {
+                        let Decl {
+                            func,
+                            pars,
+                            body,
+                            info,
+                        } = decl;
+                        let body = continue_with(joins, body, hole, rest.clone());
+                        Decl {
+                            func,
+                            pars,
+                            body,
+                            info,
+                        }
+                    } else {
+                        decl
+                    }
+                })
+                .collect();
+            let cont = Box::new(continue_with(joins, *cont, hole, rest));
             Expr::Decls { decls, cont }
         }
         Expr::Prim {
@@ -243,7 +270,7 @@ fn insert_join(expr: Expr, join: Ident) -> Expr {
             args,
             cont,
         } => {
-            let cont = Box::new(insert_join(*cont, join));
+            let cont = Box::new(continue_with(joins, *cont, bind, rest));
             Expr::Prim {
                 bind,
                 prim,
@@ -254,7 +281,7 @@ fn insert_join(expr: Expr, join: Ident) -> Expr {
         Expr::Brch { prim, args, conts } => {
             let conts = conts
                 .into_iter()
-                .map(|cont| insert_join(cont, join))
+                .map(|cont| continue_with(joins, cont, hole, rest.clone()))
                 .collect();
             Expr::Brch { prim, args, conts }
         }
@@ -264,80 +291,27 @@ fn insert_join(expr: Expr, join: Ident) -> Expr {
             args,
             cont,
         } => {
-            let cont = Box::new(insert_join(*cont, join));
-            Expr::Call {
-                bind,
-                func,
-                args,
-                cont,
-            }
-        }
-        Expr::Retn { res } => {
-            let j = Ident::fresh(&"j");
-            let r = Ident::fresh(&"r");
-            Expr::Call {
-                bind: r,
-                func: Atom::Var(j),
-                args: vec![res],
-                cont: Box::new(Expr::Retn { res: Atom::Var(r) }),
-            }
-        }
-    }
-}
-
-fn tailing(expr: Expr, bind: Ident, cont: Expr) -> Expr {
-    match expr {
-        Expr::Decls { decls, cont: cont2 } => {
-            let cont = Box::new(tailing(*cont2, bind, cont));
-            Expr::Decls { decls, cont }
-        }
-        Expr::Prim {
-            bind,
-            prim,
-            args,
-            cont: cont2,
-        } => {
-            let cont = Box::new(tailing(*cont2, bind, cont));
-            Expr::Prim {
-                bind,
-                prim,
-                args,
-                cont,
-            }
-        }
-        expr @ Expr::Brch { .. } => {
-            let j = Ident::fresh(&"j");
-            let decl = Decl {
-                func: j,
-                pars: vec![bind],
-                body: cont,
-                info: CallInfo::JoinPoint,
-            };
-            let cont = Box::new(insert_join(expr, j));
-            Expr::Decls {
-                decls: vec![decl],
-                cont,
-            }
-        }
-        Expr::Call {
-            bind,
-            func,
-            args,
-            cont: cont2,
-        } => {
-            let cont = Box::new(tailing(*cont2, bind, cont));
-            Expr::Call {
-                bind,
-                func,
-                args,
-                cont,
+            if let Atom::Var(name) = func {
+                if joins.contains(&name) {
+                    *cont
+                } else {
+                    let cont = Box::new(continue_with(joins, *cont, bind, rest));
+                    Expr::Call {
+                        bind,
+                        func,
+                        args,
+                        cont,
+                    }
+                }
+            } else {
+                unreachable!()
             }
         }
         Expr::Retn { res } => Expr::Prim {
-            bind,
+            bind: hole,
             prim: PrimOpr::Move,
             args: vec![res],
-            cont: Box::new(cont),
+            cont: Box::new(rest),
         },
     }
 }
@@ -351,15 +325,15 @@ fn inline_call(decl: Decl, bind: Ident, func: Ident, args: Vec<Atom>, cont: Expr
     } = decl;
     assert_eq!(func, func2);
     assert_eq!(args.len(), pars.len());
-
-    pars.into_iter()
-        .zip(args.into_iter())
-        .fold(tailing(body, bind, cont), |tail, (par, arg)| Expr::Prim {
+    pars.into_iter().zip(args.into_iter()).fold(
+        continue_with(&mut HashSet::new(), body, bind, cont),
+        |tail, (par, arg)| Expr::Prim {
             bind: par,
             prim: PrimOpr::Move,
             args: vec![arg],
             cont: Box::new(tail),
-        })
+        },
+    )
 }
 
 #[test]
