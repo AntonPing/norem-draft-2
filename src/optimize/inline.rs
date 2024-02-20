@@ -43,6 +43,7 @@ impl InlineScan {
             func: _,
             pars,
             body,
+            info: _,
         } = decl;
         self.visit_expr(body);
         pars.iter().for_each(|par| {
@@ -142,9 +143,19 @@ impl InlinePerform {
     }
 
     fn visit_decl(&mut self, decl: Decl) -> Decl {
-        let Decl { func, pars, body } = decl;
+        let Decl {
+            func,
+            pars,
+            body,
+            info,
+        } = decl;
         let body = self.visit_expr(body);
-        Decl { func, pars, body }
+        Decl {
+            func,
+            pars,
+            body,
+            info,
+        }
     }
 
     fn visit_expr(&mut self, expr: Expr) -> Expr {
@@ -300,6 +311,7 @@ fn tailing(expr: Expr, bind: Ident, cont: Expr) -> Expr {
                 func: j,
                 pars: vec![bind],
                 body: cont,
+                info: CallInfo::JoinPoint,
             };
             let cont = Box::new(insert_join(expr, j));
             Expr::Decls {
@@ -335,6 +347,7 @@ fn inline_call(decl: Decl, bind: Ident, func: Ident, args: Vec<Atom>, cont: Expr
         func: func2,
         pars,
         body,
+        info: _,
     } = decl;
     assert_eq!(func, func2);
     assert_eq!(args.len(), pars.len());

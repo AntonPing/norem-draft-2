@@ -197,7 +197,15 @@ fn decl(input: &str) -> IResult<&str, Decl> {
     let (input, _) = skip_space_tag("begin", input)?;
     let (input, body) = expr(input)?;
     let (input, _) = skip_space_tag("end", input)?;
-    Ok((input, Decl { func, pars, body }))
+    Ok((
+        input,
+        Decl {
+            func,
+            pars,
+            body,
+            info: CallInfo::NoInfo,
+        },
+    ))
 }
 
 fn module(input: &str) -> IResult<&str, Module> {

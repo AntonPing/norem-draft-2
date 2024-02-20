@@ -85,7 +85,12 @@ impl Codegen {
     }
 
     fn visit_decl(&mut self, decl: &Decl) {
-        let Decl { func, pars, body } = decl;
+        let Decl {
+            func,
+            pars,
+            body,
+            info: _,
+        } = decl;
         self.max_reg = 0;
 
         for par in pars.iter() {

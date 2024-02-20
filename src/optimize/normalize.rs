@@ -70,6 +70,7 @@ impl Normalizer {
                         func: func_bind,
                         pars: pars.clone(),
                         body: Normalizer::normalize_expr(body),
+                        info: anf::CallInfo::NoInfo,
                     }],
                     cont: Box::new(subst(rest, *bind, Atom::Var(func_bind))),
                 }
@@ -143,6 +144,7 @@ impl Normalizer {
                         func: j,
                         pars: vec![*bind],
                         body: rest,
+                        info: anf::CallInfo::NoInfo,
                     }],
                     cont: Box::new(self.normalize_expr_with_cont(cond, &x1, ifte)),
                 }
@@ -184,6 +186,7 @@ impl Normalizer {
                     func: *func,
                     pars,
                     body,
+                    info: anf::CallInfo::NoInfo,
                 }
             }
         }

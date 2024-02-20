@@ -43,7 +43,12 @@ impl Optimizer {
         let decls: Vec<anf::Decl> = decls
             .into_iter()
             .map(|decl| {
-                let anf::Decl { func, pars, body } = decl;
+                let anf::Decl {
+                    func,
+                    pars,
+                    body,
+                    info,
+                } = decl;
                 let body = self.visit_expr(body);
                 for par in pars.iter() {
                     self.used_set.remove(par);
@@ -51,7 +56,12 @@ impl Optimizer {
                 for name in func_names.iter() {
                     self.used_set.remove(name);
                 }
-                anf::Decl { func, pars, body }
+                anf::Decl {
+                    func,
+                    pars,
+                    body,
+                    info,
+                }
             })
             .collect();
 
@@ -71,7 +81,12 @@ impl Optimizer {
                 let decls: Vec<anf::Decl> = decls
                     .into_iter()
                     .map(|decl| {
-                        let anf::Decl { func, pars, body } = decl;
+                        let anf::Decl {
+                            func,
+                            pars,
+                            body,
+                            info,
+                        } = decl;
                         let body = self.visit_expr(body);
                         for par in pars.iter() {
                             self.used_set.remove(par);
@@ -81,7 +96,12 @@ impl Optimizer {
                                 call_graph.get_mut(&func).unwrap().insert(*name);
                             }
                         }
-                        anf::Decl { func, pars, body }
+                        anf::Decl {
+                            func,
+                            pars,
+                            body,
+                            info,
+                        }
                     })
                     .collect();
 

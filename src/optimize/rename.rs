@@ -41,6 +41,7 @@ impl Renamer {
             func: _,
             pars,
             body,
+            info: _,
         } = decl;
         self.context.enter_scope();
         for par in pars {
