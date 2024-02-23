@@ -1,10 +1,11 @@
-use super::ast::{Decl, Expr, Module, Stmt};
+use super::ast::{Decl, Expr, Module, Stmt, Type};
 use crate::utils::env_map::EnvMap;
 use crate::utils::ident::Ident;
 use std::ops::DerefMut;
 
 struct Renamer {
-    context: EnvMap<Ident, Ident>,
+    val_ctx: EnvMap<Ident, Ident>,
+    typ_ctx: EnvMap<Ident, Ident>,
 }
 
 type RenameResult = Result<(), String>;
@@ -12,22 +13,49 @@ type RenameResult = Result<(), String>;
 impl Renamer {
     pub fn new() -> Renamer {
         Renamer {
-            context: EnvMap::new(),
+            val_ctx: EnvMap::new(),
+            typ_ctx: EnvMap::new(),
+        }
+    }
+
+    fn intro_val_ident(&mut self, ident: &mut Ident) {
+        assert!(ident.is_dummy());
+        let new = ident.uniquify();
+        self.val_ctx.insert(*ident, new);
+        *ident = new;
+    }
+
+    fn intro_typ_ident(&mut self, ident: &mut Ident) {
+        assert!(ident.is_dummy());
+        let new = ident.uniquify();
+        self.typ_ctx.insert(*ident, new);
+        *ident = new;
+    }
+
+    fn rename_val_ident(&mut self, ident: &mut Ident) -> RenameResult {
+        assert!(ident.is_dummy());
+        if let Some(res) = self.val_ctx.get(&ident) {
+            *ident = *res;
+            Ok(())
+        } else {
+            Err("Value variable not in scope!".to_string())
+        }
+    }
+
+    fn rename_typ_ident(&mut self, ident: &mut Ident) -> RenameResult {
+        assert!(ident.is_dummy());
+        if let Some(res) = self.typ_ctx.get(&ident) {
+            *ident = *res;
+            Ok(())
+        } else {
+            Err("Type variable not in scope!".to_string())
         }
     }
 
     fn rename_expr(&mut self, expr: &mut Expr) -> RenameResult {
         match expr {
             Expr::Lit { lit: _, span: _ } => Ok(()),
-            Expr::Var { ident, span: _ } => {
-                assert!(ident.is_dummy());
-                if let Some(res) = self.context.get(&ident) {
-                    *ident = *res;
-                    Ok(())
-                } else {
-                    Err("Variable not in scope!".to_string())
-                }
-            }
+            Expr::Var { ident, span: _ } => self.rename_val_ident(ident),
             Expr::Prim {
                 prim: _,
                 args,
@@ -43,14 +71,12 @@ impl Renamer {
                 body,
                 span: _,
             } => {
-                self.context.enter_scope();
+                self.val_ctx.enter_scope();
                 for par in pars.iter_mut() {
-                    let new = par.uniquify();
-                    self.context.insert(*par, new);
-                    *par = new;
+                    self.intro_val_ident(par);
                 }
                 self.rename_expr(body)?;
-                self.context.leave_scope();
+                self.val_ctx.leave_scope();
                 Ok(())
             }
             Expr::App {
@@ -87,12 +113,12 @@ impl Renamer {
                     span: _,
                 } => {
                     self.rename_expr(expr)?;
-                    self.context.enter_scope();
+                    self.val_ctx.enter_scope();
                     let new = ident.uniquify();
-                    self.context.insert(*ident, new);
+                    self.val_ctx.insert(*ident, new);
                     *ident = new;
                     self.rename_expr(cont)?;
-                    self.context.leave_scope();
+                    self.val_ctx.leave_scope();
                     Ok(())
                 }
                 Stmt::Do { expr, span: _ } => {
@@ -103,25 +129,44 @@ impl Renamer {
             },
         }
     }
+
+    fn rename_type(&mut self, typ: &mut Type) -> RenameResult {
+        match typ {
+            Type::Lit { lit: _ } => Ok(()),
+            Type::Var { ident } => self.rename_typ_ident(ident),
+            Type::Func { pars, res } => {
+                for par in pars.iter_mut() {
+                    self.rename_type(par)?;
+                }
+                self.rename_type(res)?;
+                Ok(())
+            }
+        }
+    }
     fn rename_decl(&mut self, decl: &mut Decl) -> RenameResult {
         match decl {
             Decl::Func {
                 func: _,
-                polys: _,
+                polys,
                 pars,
-                res: _,
+                res,
                 span1: _,
                 body,
                 span2: _,
             } => {
-                self.context.enter_scope();
-                for (par, _) in pars.iter_mut() {
-                    let new = par.uniquify();
-                    self.context.insert(*par, new);
-                    *par = new;
+                self.val_ctx.enter_scope();
+                self.typ_ctx.enter_scope();
+                for poly in polys {
+                    self.intro_typ_ident(poly);
                 }
+                for (par, typ) in pars.iter_mut() {
+                    self.intro_val_ident(par);
+                    self.rename_type(typ)?;
+                }
+                self.rename_type(res)?;
                 self.rename_expr(body)?;
-                self.context.leave_scope();
+                self.val_ctx.leave_scope();
+                self.typ_ctx.leave_scope();
                 Ok(())
             }
         }
@@ -129,20 +174,16 @@ impl Renamer {
 
     fn rename_module(&mut self, modl: &mut Module) -> RenameResult {
         let Module { name: _, decls } = modl;
-        self.context.enter_scope();
+        self.val_ctx.enter_scope();
         for decl in decls.iter_mut() {
             match decl {
-                Decl::Func { func, .. } => {
-                    let new = func.uniquify();
-                    self.context.insert(*func, new);
-                    *func = new;
-                }
+                Decl::Func { func, .. } => self.intro_val_ident(func),
             }
         }
         for decl in decls.iter_mut() {
             self.rename_decl(decl)?;
         }
-        self.context.leave_scope();
+        self.val_ctx.leave_scope();
         Ok(())
     }
 }
@@ -174,8 +215,11 @@ begin
     let r = @iadd(x, 1);
     r
 end
+function id[T](x: T) -> T
+begin
+    x
+end
 "#;
-
     let mut modl = parse_module(s).unwrap();
     rename_module(&mut modl).unwrap();
     println!("{:#?}", modl);
