@@ -1,4 +1,4 @@
-module trivial where
+module Trivial where
 function add(x: Int, y: Int) -> Int
 begin
     @iadd(x, y)

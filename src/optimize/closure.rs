@@ -205,7 +205,7 @@ impl ClosConv {
 #[ignore = "just to see result"]
 fn clos_conv_test_1() {
     let s = r#"
-module test where
+module Test where
 fn f(x) begin
     decl
         fn g(y) begin
@@ -236,7 +236,7 @@ end
 #[ignore = "just to see result"]
 fn clos_conv_test_2() {
     let s = r#"
-module test where
+module Test where
 fn f(x) begin
     let y = @iadd(x, 1);
     return y;
@@ -264,7 +264,7 @@ end
 #[ignore = "just to see result"]
 fn clos_conv_test_3() {
     let s = r#"
-module test where
+module Test where
 fn f(x) begin
     let one = @move(1);
     decl

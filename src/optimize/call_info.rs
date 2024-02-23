@@ -156,7 +156,7 @@ impl CallInfoScan {
 #[ignore = "just to see result"]
 fn call_info_test() {
     let s = r#"
-module test where
+module Test where
 fn f(x) begin
     let y = @iadd(x, 1);
     return y;

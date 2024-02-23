@@ -1,4 +1,4 @@
-module curried where
+module Curried where
 function main() -> Int
 begin
     let f = fn(x) => begin

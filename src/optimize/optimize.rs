@@ -290,7 +290,7 @@ fn calculate_reachable(
 #[ignore = "just to see result"]
 fn optimize_test_const_fold() {
     let s = r#"
-module test where
+module Test where
 fn f() begin
     let x = @iadd(1, 2);
     let r = @record(x, x);
@@ -312,7 +312,7 @@ end
 #[ignore = "just to see result"]
 fn optimize_test_dead_elim() {
     let s = r#"
-module test where
+module Test where
 fn f() begin
     let x = @iadd(a, b);
     let y = @iadd(x, c);
@@ -330,7 +330,7 @@ end
 #[ignore = "just to see result"]
 fn optimize_test_unused_func() {
     let s = r#"
-module test where
+module Test where
 fn f() begin
     decl
         fn f(x) begin

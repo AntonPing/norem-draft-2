@@ -340,7 +340,7 @@ fn inline_call(decl: Decl, bind: Ident, func: Ident, args: Vec<Atom>, cont: Expr
 #[ignore = "just to see result"]
 fn inline_test() {
     let s = r#"
-module test where
+module Test where
 fn g(x) begin
     decl
         fn f(x) begin

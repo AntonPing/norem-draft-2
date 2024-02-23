@@ -203,7 +203,7 @@ pub fn rename_module(expr: &mut Module) -> RenameResult {
 fn renamer_test() {
     use crate::syntax::parser::parse_module;
     let s = r#"
-module test where
+module Test where
 function f(x: Int) -> Int
 begin
     let h = fn(x) => @iadd(x, 1);

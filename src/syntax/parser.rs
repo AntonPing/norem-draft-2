@@ -463,7 +463,7 @@ impl<'src> Parser<'src> {
 
     fn parse_module(&mut self) -> Option<Module> {
         self.match_token(Token::Module)?;
-        let name = self.parse_lid()?;
+        let name = self.parse_uid()?;
         self.match_token(Token::Where)?;
         let mut decls: Vec<Decl> = Vec::new();
         loop {
@@ -502,7 +502,7 @@ fn parser_test() {
         test block comment
     */
 */
-module test where
+module Test where
 function f(x: Int) -> Int
 begin
     let f = fn(x) => @iadd(x,1);

@@ -118,7 +118,7 @@ impl Renamer {
 #[ignore = "just to see result"]
 fn rename_test() {
     let s = r#"
-module test where
+module Test where
 fn f(x) begin
     let x = @move(1);
     decl

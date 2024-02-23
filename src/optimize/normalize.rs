@@ -204,7 +204,7 @@ impl Normalizer {
 #[ignore = "just to see result"]
 fn normalize_test() {
     let s = r#"
-module test where
+module Test where
 function f(x: Int) -> Int
 begin
     let f = fn(x) => @iadd(x,1);

@@ -235,7 +235,7 @@ pub fn parse_module(input: &str) -> Option<Module> {
 #[ignore = "just to see result"]
 fn parser_test() {
     let s = r#"
-module test where
+module Test where
 fn top1(x, y) begin
     return x;
 end
