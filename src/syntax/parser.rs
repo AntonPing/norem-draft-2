@@ -154,9 +154,20 @@ impl<'src> Parser<'src> {
         }
     }
 
-    fn parse_ident(&mut self) -> Option<Ident> {
+    fn parse_lid(&mut self) -> Option<Ident> {
         match self.peek_token() {
             Token::LowerIdent => {
+                let res = Ident::dummy(&self.peek_slice());
+                self.next_token();
+                Some(res)
+            }
+            _tok => None,
+        }
+    }
+
+    fn parse_uid(&mut self) -> Option<Ident> {
+        match self.peek_token() {
+            Token::UpperIdent => {
                 let res = Ident::dummy(&self.peek_slice());
                 self.next_token();
                 Some(res)
@@ -185,12 +196,7 @@ impl<'src> Parser<'src> {
     }
 
     fn parse_parameters(&mut self) -> Option<Vec<Ident>> {
-        self.delimited_list(
-            Token::LParen,
-            Token::Comma,
-            Token::RParen,
-            Self::parse_ident,
-        )
+        self.delimited_list(Token::LParen, Token::Comma, Token::RParen, Self::parse_lid)
     }
 
     fn parse_expr_args(&mut self) -> Option<Vec<Expr>> {
@@ -207,7 +213,7 @@ impl<'src> Parser<'src> {
                 Some(Expr::Lit { lit, span })
             }
             Token::LowerIdent => {
-                let ident = self.parse_ident()?;
+                let ident = self.parse_lid()?;
                 let end = self.end_pos();
                 let span = Span { start, end };
                 let var = Expr::Var { ident, span };
@@ -277,7 +283,7 @@ impl<'src> Parser<'src> {
         match self.peek_token() {
             Token::Let => {
                 self.match_token(Token::Let);
-                let ident = self.parse_ident()?;
+                let ident = self.parse_lid()?;
                 let typ: Option<Type> = self.option(|par| {
                     par.match_token(Token::Colon)?;
                     par.parse_type()
@@ -382,6 +388,10 @@ impl<'src> Parser<'src> {
                     lit: LitType::TyChar,
                 })
             }
+            Token::UpperIdent => {
+                let ident = self.parse_uid()?;
+                Some(Type::Var { ident })
+            }
             Token::Fn => {
                 self.match_token(Token::Fn)?;
                 let pars =
@@ -408,10 +418,18 @@ impl<'src> Parser<'src> {
         match self.peek_token() {
             Token::Function => {
                 self.match_token(Token::Function)?;
-                let func = self.parse_ident()?;
+                let func = self.parse_lid()?;
+                let polys = self
+                    .option(|par| {
+                        par.delimited_list(Token::LBracket, Token::Comma, Token::RBracket, |par| {
+                            par.parse_uid()
+                        })
+                    })
+                    .map(|res| res.unwrap_or(Vec::new()))?;
+
                 let pars =
                     self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
-                        let ident = par.parse_ident()?;
+                        let ident = par.parse_lid()?;
                         par.match_token(Token::Colon)?;
                         let typ = par.parse_type()?;
                         Some((ident, typ))
@@ -432,6 +450,7 @@ impl<'src> Parser<'src> {
                 Some(Decl::Func {
                     func,
                     pars,
+                    polys,
                     res,
                     span1,
                     body,
@@ -444,7 +463,7 @@ impl<'src> Parser<'src> {
 
     fn parse_module(&mut self) -> Option<Module> {
         self.match_token(Token::Module)?;
-        let name = self.parse_ident()?;
+        let name = self.parse_lid()?;
         self.match_token(Token::Where)?;
         let mut decls: Vec<Decl> = Vec::new();
         loop {
@@ -495,6 +514,10 @@ function g(x: Int) -> Int
 begin
     let r = @iadd(x, 1);
     r
+end
+function id[T](x: T) -> T
+begin
+    x
 end
 "#;
     let mut par = Parser::new(s);

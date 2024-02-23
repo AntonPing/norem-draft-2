@@ -107,6 +107,7 @@ impl Renamer {
         match decl {
             Decl::Func {
                 func: _,
+                polys: _,
                 pars,
                 res: _,
                 span1: _,

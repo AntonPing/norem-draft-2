@@ -57,6 +57,7 @@ impl PrimOpr {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Type {
     Lit { lit: LitType },
+    Var { ident: Ident },
     Func { pars: Vec<Type>, res: Box<Type> },
 }
 
@@ -116,6 +117,7 @@ pub enum Stmt {
 pub enum Decl {
     Func {
         func: Ident,
+        polys: Vec<Ident>,
         pars: Vec<(Ident, Type)>,
         res: Type,
         span1: Span,
