@@ -1,5 +1,6 @@
 use crate::syntax::ast::{LitType, Type};
 use crate::utils::ident::Ident;
+use std::collections::HashMap;
 use std::ops::Deref;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -109,6 +110,42 @@ impl UnifySolver {
                 }
             }
             other => other.clone(),
+        }
+    }
+
+    pub fn instantiate(&mut self, polys: &Vec<Ident>, typ: &UnifyType) -> UnifyType {
+        fn instantiate_aux(map: &HashMap<Ident, usize>, typ: &UnifyType) -> UnifyType {
+            match typ {
+                UnifyType::Lit(lit) => UnifyType::Lit(*lit),
+                UnifyType::Func(pars, res) => {
+                    let pars = pars.iter().map(|par| instantiate_aux(map, par)).collect();
+                    let res = Box::new(instantiate_aux(map, res));
+                    UnifyType::Func(pars, res)
+                }
+                UnifyType::Var(ident) => {
+                    if let Some(cell) = map.get(ident) {
+                        UnifyType::Cell(*cell)
+                    } else {
+                        UnifyType::Var(*ident)
+                    }
+                }
+                UnifyType::Cell(cell) => UnifyType::Cell(*cell),
+            }
+        }
+        if polys.is_empty() {
+            typ.clone()
+        } else {
+            let map = polys
+                .iter()
+                .map(|poly| {
+                    if let UnifyType::Cell(cell) = self.new_cell() {
+                        (*poly, cell)
+                    } else {
+                        unreachable!()
+                    }
+                })
+                .collect();
+            instantiate_aux(&map, typ)
         }
     }
 }

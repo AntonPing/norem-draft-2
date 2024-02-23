@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 struct TypeChecker {
-    context: HashMap<Ident, UnifyType>,
+    context: HashMap<Ident, (Vec<Ident>, UnifyType)>,
     solver: UnifySolver,
 }
 
@@ -28,8 +28,8 @@ impl TypeChecker {
                 Ok(typ)
             }
             Expr::Var { ident, span: _ } => {
-                if let Some(typ) = self.context.get(&ident) {
-                    Ok(typ.clone())
+                if let Some((polys, typ)) = self.context.get(&ident) {
+                    Ok(self.solver.instantiate(polys, typ))
                 } else {
                     Err("Can't find variable in scope!".to_string())
                 }
@@ -68,7 +68,7 @@ impl TypeChecker {
                     .iter()
                     .map(|par| {
                         let cell = self.solver.new_cell();
-                        self.context.insert(*par, cell.clone());
+                        self.context.insert(*par, (Vec::new(), cell.clone()));
                         cell
                     })
                     .collect();
@@ -121,7 +121,7 @@ impl TypeChecker {
                     if let Some(ty_anno) = ty_anno {
                         self.solver.unify(&ty, &ty_anno.into())?;
                     }
-                    self.context.insert(*ident, ty);
+                    self.context.insert(*ident, (Vec::new(), ty));
                     let res_ty = self.check_expr(cont)?;
                     Ok(res_ty)
                 }
@@ -141,7 +141,7 @@ impl TypeChecker {
                 pars, res, body, ..
             } => {
                 for (par, typ) in pars {
-                    self.context.insert(*par, typ.into());
+                    self.context.insert(*par, (Vec::new(), typ.into()));
                 }
                 let res_ty = self.check_expr(body)?;
                 self.solver.unify(&res_ty, &res.into())?;
@@ -155,13 +155,17 @@ impl TypeChecker {
         for decl in decls {
             match decl {
                 Decl::Func {
-                    func, pars, res, ..
+                    func,
+                    polys,
+                    pars,
+                    res,
+                    ..
                 } => {
                     let (_, par_tys): (Vec<Ident>, Vec<UnifyType>) =
                         pars.iter().map(|(par, typ)| (par, typ.into())).unzip();
                     let res_ty: UnifyType = res.into();
                     let func_ty = UnifyType::Func(par_tys, Box::new(res_ty));
-                    self.context.insert(*func, func_ty);
+                    self.context.insert(*func, (polys.clone(), func_ty));
                 }
             }
         }
@@ -199,6 +203,14 @@ function g(x: Int) -> Int
 begin
     let r = @iadd(x, 1);
     r
+end
+function id[T](x: T) -> T
+begin
+    x
+end
+function test() -> Int
+begin
+    id(42)
 end
 "#;
 
