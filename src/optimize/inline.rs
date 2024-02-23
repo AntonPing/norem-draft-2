@@ -270,7 +270,7 @@ fn continue_with(joins: &mut HashSet<Ident>, expr: Expr, hole: Ident, rest: Expr
             args,
             cont,
         } => {
-            let cont = Box::new(continue_with(joins, *cont, bind, rest));
+            let cont = Box::new(continue_with(joins, *cont, hole, rest));
             Expr::Prim {
                 bind,
                 prim,
@@ -295,7 +295,7 @@ fn continue_with(joins: &mut HashSet<Ident>, expr: Expr, hole: Ident, rest: Expr
                 if joins.contains(&name) {
                     *cont
                 } else {
-                    let cont = Box::new(continue_with(joins, *cont, bind, rest));
+                    let cont = Box::new(continue_with(joins, *cont, hole, rest));
                     Expr::Call {
                         bind,
                         func,
