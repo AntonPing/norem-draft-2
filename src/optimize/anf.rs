@@ -34,6 +34,12 @@ impl Atom {
             _ => panic!("Failed to unwrap variable!"),
         }
     }
+    pub fn unwrap_int(self) -> i64 {
+        match self {
+            Atom::Int(x) => x,
+            _ => panic!("Failed to unwrap integer!"),
+        }
+    }
 }
 
 impl From<ast::LitVal> for Atom {

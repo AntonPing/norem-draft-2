@@ -224,7 +224,11 @@ end
 "#;
     let modl = super::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
+    let modl = super::optimize::Optimizer::run(modl);
+    println!("{}\n", modl);
     let modl = ClosConv::run(modl);
+    println!("{}\n", modl);
+    let modl = super::optimize::Optimizer::run(modl);
     println!("{}\n", modl);
 }
 
@@ -248,7 +252,11 @@ end
 "#;
     let modl = super::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
+    let modl = super::optimize::Optimizer::run(modl);
+    println!("{}\n", modl);
     let modl = ClosConv::run(modl);
+    println!("{}\n", modl);
+    let modl = super::optimize::Optimizer::run(modl);
     println!("{}\n", modl);
 }
 
@@ -258,13 +266,14 @@ fn clos_conv_test_3() {
     let s = r#"
 module test where
 fn f(x) begin
+    let one = @move(1);
     decl
         fn g(z) begin
-            let a = f(z);
+            let a = @iadd(z, one);
             return a;
         end
     in
-        let y = @iadd(x, 1);
+        let y = g(x);
         return y;
     end
 end
@@ -275,6 +284,10 @@ end
 "#;
     let modl = super::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
+    let modl = super::optimize::Optimizer::run(modl);
+    println!("{}\n", modl);
     let modl = ClosConv::run(modl);
+    println!("{}\n", modl);
+    let modl = super::optimize::Optimizer::run(modl);
     println!("{}\n", modl);
 }

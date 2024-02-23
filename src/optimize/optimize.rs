@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 pub struct Optimizer {
     atom_map: HashMap<Ident, Atom>,
+    record_map: HashMap<Ident, Vec<Atom>>,
     used_set: HashSet<Ident>,
 }
 
@@ -11,6 +12,7 @@ impl Optimizer {
     pub fn run(modl: Module) -> Module {
         let mut pass = Optimizer {
             atom_map: HashMap::new(),
+            record_map: HashMap::new(),
             used_set: HashSet::new(),
         };
         pass.visit_module(modl)
@@ -147,6 +149,46 @@ impl Optimizer {
                         self.atom_map.insert(bind, *atom);
                         self.visit_expr(*cont)
                     }
+                    (PrimOpr::Record, []) => {
+                        self.atom_map.insert(bind, Atom::Unit);
+                        self.visit_expr(*cont)
+                    }
+                    (PrimOpr::Record, _) => {
+                        self.record_map.insert(bind, args.clone());
+                        let cont = self.visit_expr(*cont);
+                        if self.used_set.contains(&bind) {
+                            self.used_set.remove(&bind);
+                            args.iter().for_each(|arg| self.mark_used(arg));
+                            anf::Expr::Prim {
+                                bind,
+                                prim,
+                                args,
+                                cont: Box::new(cont),
+                            }
+                        } else {
+                            cont
+                        }
+                    }
+                    (PrimOpr::Select, [rec, idx]) => {
+                        if let Some(elems) = self.record_map.get(&rec.unwrap_var()) {
+                            self.atom_map.insert(bind, elems[idx.unwrap_int() as usize]);
+                            self.visit_expr(*cont)
+                        } else {
+                            let cont = self.visit_expr(*cont);
+                            if self.used_set.contains(&bind) {
+                                self.used_set.remove(&bind);
+                                args.iter().for_each(|arg| self.mark_used(arg));
+                                anf::Expr::Prim {
+                                    bind,
+                                    prim,
+                                    args,
+                                    cont: Box::new(cont),
+                                }
+                            } else {
+                                cont
+                            }
+                        }
+                    }
                     _ => {
                         let cont = self.visit_expr(*cont);
                         // unused primitive elimination
@@ -251,14 +293,18 @@ fn optimize_test_const_fold() {
 module test where
 fn f() begin
     let x = @iadd(1, 2);
-    let y = @iadd(x, x);
-    let z = @iadd(x, y);
+    let r = @record(x, x);
+    let x1 = @select(r, 0);
+    let x2 = @select(r, 1);
+    let y = @iadd(x1, x2);
+    let z = @iadd(x1, y);
     return z;
 end
 "#;
     let modl = super::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
     let expr = Optimizer::run(modl);
+    let expr = Optimizer::run(expr);
     println!("{}\n", expr);
 }
 
