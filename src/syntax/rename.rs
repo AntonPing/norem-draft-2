@@ -1,4 +1,4 @@
-use super::ast::{Decl, Expr, Module, Stmt, Type};
+use super::ast::{Decl, Expr, Module, Pattern, Rule, Stmt, Type};
 use crate::utils::env_map::EnvMap;
 use crate::utils::ident::Ident;
 use std::ops::DerefMut;
@@ -6,6 +6,7 @@ use std::ops::DerefMut;
 struct Renamer {
     val_ctx: EnvMap<Ident, Ident>,
     typ_ctx: EnvMap<Ident, Ident>,
+    cons_ctx: EnvMap<Ident, Ident>,
 }
 
 type RenameResult = Result<(), String>;
@@ -15,7 +16,20 @@ impl Renamer {
         Renamer {
             val_ctx: EnvMap::new(),
             typ_ctx: EnvMap::new(),
+            cons_ctx: EnvMap::new(),
         }
+    }
+
+    fn enter_scope(&mut self) {
+        self.val_ctx.enter_scope();
+        self.typ_ctx.enter_scope();
+        self.cons_ctx.enter_scope();
+    }
+
+    fn leave_scope(&mut self) {
+        self.val_ctx.leave_scope();
+        self.typ_ctx.leave_scope();
+        self.cons_ctx.leave_scope();
     }
 
     fn intro_val_ident(&mut self, ident: &mut Ident) {
@@ -29,6 +43,13 @@ impl Renamer {
         assert!(ident.is_dummy());
         let new = ident.uniquify();
         self.typ_ctx.insert(*ident, new);
+        *ident = new;
+    }
+
+    fn intro_cons_ident(&mut self, ident: &mut Ident) {
+        assert!(ident.is_dummy());
+        let new = ident.uniquify();
+        self.cons_ctx.insert(*ident, new);
         *ident = new;
     }
 
@@ -52,10 +73,23 @@ impl Renamer {
         }
     }
 
+    fn rename_cons_ident(&mut self, ident: &mut Ident) -> RenameResult {
+        assert!(ident.is_dummy());
+        if let Some(res) = self.cons_ctx.get(&ident) {
+            *ident = *res;
+            Ok(())
+        } else {
+            Err("Constructor not in scope!".to_string())
+        }
+    }
+
     fn rename_expr(&mut self, expr: &mut Expr) -> RenameResult {
         match expr {
             Expr::Lit { lit: _, span: _ } => Ok(()),
-            Expr::Var { ident, span: _ } => self.rename_val_ident(ident),
+            Expr::Var { ident, span: _ } => {
+                self.rename_val_ident(ident)?;
+                Ok(())
+            }
             Expr::Prim {
                 prim: _,
                 args,
@@ -71,19 +105,23 @@ impl Renamer {
                 flds,
                 span: _,
             } => {
-                todo!()
+                self.rename_cons_ident(cons)?;
+                for fld in flds.iter_mut() {
+                    self.rename_expr(&mut fld.data)?;
+                }
+                Ok(())
             }
             Expr::Func {
                 pars,
                 body,
                 span: _,
             } => {
-                self.val_ctx.enter_scope();
+                self.enter_scope();
                 for par in pars.iter_mut() {
                     self.intro_val_ident(par);
                 }
                 self.rename_expr(body)?;
-                self.val_ctx.leave_scope();
+                self.leave_scope();
                 Ok(())
             }
             Expr::App {
@@ -113,7 +151,11 @@ impl Renamer {
                 rules,
                 span: _,
             } => {
-                todo!()
+                self.rename_expr(expr)?;
+                for rule in rules.iter_mut() {
+                    self.rename_rule(rule)?;
+                }
+                Ok(())
             }
             Expr::Stmt {
                 stmt,
@@ -164,6 +206,41 @@ impl Renamer {
             }
         }
     }
+
+    fn rename_rule(&mut self, rule: &mut Rule) -> RenameResult {
+        let Rule {
+            patn,
+            body,
+            span: _,
+        } = rule;
+        self.enter_scope();
+        self.rename_pattern(patn)?;
+        self.rename_expr(body)?;
+        self.leave_scope();
+        Ok(())
+    }
+
+    fn rename_pattern(&mut self, patn: &mut Pattern) -> RenameResult {
+        match patn {
+            Pattern::Var { ident, span: _ } => {
+                self.intro_val_ident(ident);
+            }
+            Pattern::Lit { lit: _, span: _ } => {}
+            Pattern::Cons {
+                cons,
+                patns,
+                span: _,
+            } => {
+                self.rename_cons_ident(cons)?;
+                for patn in patns.iter_mut() {
+                    self.rename_pattern(&mut patn.data)?;
+                }
+            }
+            Pattern::Wild { span: _ } => {}
+        }
+        Ok(())
+    }
+
     fn rename_decl(&mut self, decl: &mut Decl) -> RenameResult {
         match decl {
             Decl::Func {
@@ -175,8 +252,7 @@ impl Renamer {
                 body,
                 span2: _,
             } => {
-                self.val_ctx.enter_scope();
-                self.typ_ctx.enter_scope();
+                self.enter_scope();
                 for poly in polys {
                     self.intro_typ_ident(poly);
                 }
@@ -186,41 +262,55 @@ impl Renamer {
                 }
                 self.rename_type(res)?;
                 self.rename_expr(body)?;
-                self.val_ctx.leave_scope();
-                self.typ_ctx.leave_scope();
+                self.leave_scope();
                 Ok(())
             }
             Decl::Data {
-                ident,
+                ident: _,
                 polys,
                 vars,
                 span: _,
             } => {
-                todo!()
+                self.enter_scope();
+                for poly in polys {
+                    self.intro_typ_ident(poly);
+                }
+                for var in vars {
+                    for fld in var.flds.iter_mut() {
+                        self.rename_type(&mut fld.data)?;
+                    }
+                }
+                self.leave_scope();
+                Ok(())
             }
         }
     }
 
     fn rename_module(&mut self, modl: &mut Module) -> RenameResult {
         let Module { name: _, decls } = modl;
-        self.val_ctx.enter_scope();
+        self.enter_scope();
         for decl in decls.iter_mut() {
             match decl {
-                Decl::Func { ident, .. } => self.intro_val_ident(ident),
+                Decl::Func { ident, .. } => {
+                    self.intro_val_ident(ident);
+                }
                 Decl::Data {
                     ident,
-                    polys,
+                    polys: _,
                     vars,
                     span: _,
                 } => {
-                    todo!()
+                    self.intro_typ_ident(ident);
+                    for var in vars.iter_mut() {
+                        self.intro_cons_ident(&mut var.cons);
+                    }
                 }
             }
         }
         for decl in decls.iter_mut() {
             self.rename_decl(decl)?;
         }
-        self.val_ctx.leave_scope();
+        self.leave_scope();
         Ok(())
     }
 }
@@ -241,11 +331,35 @@ fn renamer_test() {
     use crate::syntax::parser::parse_module;
     let s = r#"
 module Test where
+datatype List[T] where
+| Nil
+| Cons(T, List[T])
+end
+function map[T, U](f: fn(T) -> U, xs: List[T]) -> List[U]
+begin
+    match xs with
+    | Nil => Nil
+    | Cons(x, xs) => Cons(f(x), map(f,xs))
+    end
+end
+datatype Listt[T] where
+| Nill
+| Conss { head: T, tail: Listt[T] }
+end
+function mapp[T, U](f: fn(T) -> U, xs: Listt[T]) -> Listt[U]
+begin
+    match xs with
+    | Nill => Nill
+    | Conss { head, tail } => 
+        Conss { head: f(head), tail: mapp(f,tail) }
+    end
+end
 function f(x: Int) -> Int
 begin
-    let h = fn(x) => @iadd(x, 1);
-    let r = g(x);
-    r
+    let f = fn(x) => @iadd(x,1);
+    let res = f(42);
+    let test = if @icmpls(1, 2) then 3 else 4;
+    res
 end
 function g(x: Int) -> Int
 begin
