@@ -43,6 +43,14 @@ pub enum Token {
     Then,
     #[token("else")]
     Else,
+    #[token("match")]
+    Match,
+    #[token("with")]
+    With,
+    #[token("case")]
+    Case,
+    #[token("of")]
+    Of,
     #[token("begin")]
     Begin,
     #[token("end")]
