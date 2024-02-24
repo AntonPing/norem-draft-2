@@ -1,5 +1,6 @@
 use super::lexer::Span;
 use crate::utils::ident::Ident;
+use crate::utils::intern::InternStr;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub enum LitVal {
@@ -58,6 +59,7 @@ impl PrimOpr {
 pub enum Type {
     Lit { lit: LitType },
     Var { ident: Ident },
+    Cons { cons: Ident, args: Vec<Type> },
     Func { pars: Vec<Type>, res: Box<Type> },
 }
 
@@ -76,6 +78,11 @@ pub enum Expr {
         args: Vec<Expr>,
         span: Span,
     },
+    Cons {
+        cons: Ident,
+        flds: Vec<Labeled<Expr>>,
+        span: Span,
+    },
     Func {
         pars: Vec<Ident>,
         body: Box<Expr>,
@@ -90,6 +97,11 @@ pub enum Expr {
         cond: Box<Expr>,
         trbr: Box<Expr>,
         flbr: Box<Expr>,
+        span: Span,
+    },
+    Case {
+        expr: Box<Expr>,
+        rules: Vec<Rule>,
         span: Span,
     },
     Stmt {
@@ -114,15 +126,62 @@ pub enum Stmt {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct Labeled<T> {
+    pub label: InternStr,
+    pub data: T,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Rule {
+    pub patn: Pattern,
+    pub body: Expr,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Pattern {
+    Var {
+        ident: Ident,
+        span: Span,
+    },
+    Lit {
+        lit: LitVal,
+        span: Span,
+    },
+    Cons {
+        cons: Ident,
+        patns: Vec<Labeled<Pattern>>,
+        span: Span,
+    },
+    Wild {
+        span: Span,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Varient {
+    pub cons: Ident,
+    pub flds: Vec<Labeled<Type>>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum Decl {
     Func {
-        func: Ident,
+        ident: Ident,
         polys: Vec<Ident>,
         pars: Vec<(Ident, Type)>,
         res: Type,
         span1: Span,
         body: Expr,
         span2: Span,
+    },
+    Data {
+        ident: Ident,
+        polys: Vec<Ident>,
+        vars: Vec<Varient>,
+        span: Span,
     },
 }
 
@@ -132,9 +191,11 @@ impl Expr {
             Expr::Lit { span, .. } => span,
             Expr::Var { span, .. } => span,
             Expr::Prim { span, .. } => span,
+            Expr::Cons { span, .. } => span,
             Expr::Func { span, .. } => span,
             Expr::App { span, .. } => span,
             Expr::Ifte { span, .. } => span,
+            Expr::Case { span, .. } => span,
             Expr::Stmt { span, .. } => span,
         }
     }
@@ -153,6 +214,7 @@ impl Decl {
     pub fn get_span(&self) -> &Span {
         match self {
             Decl::Func { span2, .. } => span2,
+            Decl::Data { span, .. } => span,
         }
     }
 }

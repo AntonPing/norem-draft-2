@@ -59,6 +59,13 @@ impl TypeChecker {
                     }
                 }
             }
+            Expr::Cons {
+                cons,
+                flds,
+                span: _,
+            } => {
+                todo!()
+            }
             Expr::Func {
                 pars,
                 body,
@@ -106,6 +113,13 @@ impl TypeChecker {
                 self.solver.unify(&trbr_ty, &flbr_ty)?;
                 Ok(trbr_ty)
             }
+            Expr::Case {
+                expr,
+                rules,
+                span: _,
+            } => {
+                todo!()
+            }
             Expr::Stmt {
                 stmt,
                 cont,
@@ -138,7 +152,13 @@ impl TypeChecker {
     fn check_decl(&mut self, decl: &Decl) -> CheckResult<()> {
         match decl {
             Decl::Func {
-                pars, res, body, ..
+                ident: _,
+                polys: _,
+                pars,
+                res,
+                span1: _,
+                body,
+                span2: _,
             } => {
                 for (par, typ) in pars {
                     self.context.insert(*par, (Vec::new(), typ.into()));
@@ -146,6 +166,14 @@ impl TypeChecker {
                 let res_ty = self.check_expr(body)?;
                 self.solver.unify(&res_ty, &res.into())?;
                 Ok(())
+            }
+            Decl::Data {
+                ident,
+                polys,
+                vars,
+                span: _,
+            } => {
+                todo!()
             }
         }
     }
@@ -155,17 +183,27 @@ impl TypeChecker {
         for decl in decls {
             match decl {
                 Decl::Func {
-                    func,
+                    ident,
                     polys,
                     pars,
                     res,
-                    ..
+                    span1: _,
+                    body: _,
+                    span2: _,
                 } => {
                     let (_, par_tys): (Vec<Ident>, Vec<UnifyType>) =
                         pars.iter().map(|(par, typ)| (par, typ.into())).unzip();
                     let res_ty: UnifyType = res.into();
                     let func_ty = UnifyType::Func(par_tys, Box::new(res_ty));
-                    self.context.insert(*func, (polys.clone(), func_ty));
+                    self.context.insert(*ident, (polys.clone(), func_ty));
+                }
+                Decl::Data {
+                    ident,
+                    polys,
+                    vars,
+                    span: _,
+                } => {
+                    todo!()
                 }
             }
         }

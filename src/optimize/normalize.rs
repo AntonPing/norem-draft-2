@@ -45,9 +45,13 @@ impl Normalizer {
         rest: anf::Expr,
     ) -> anf::Expr {
         match expr {
-            ast::Expr::Lit { lit, .. } => subst(rest, *bind, (*lit).into()),
-            ast::Expr::Var { ident, .. } => subst(rest, *bind, Atom::Var(*ident)),
-            ast::Expr::Prim { prim, args, .. } => {
+            ast::Expr::Lit { lit, span: _ } => subst(rest, *bind, (*lit).into()),
+            ast::Expr::Var { ident, span: _ } => subst(rest, *bind, Atom::Var(*ident)),
+            ast::Expr::Prim {
+                prim,
+                args,
+                span: _,
+            } => {
                 // normalize(@iadd(e1, e2), hole, rest) =
                 // normalize(e2, x2, normalize(e1, x1, let hole = iadd(x1,x2) in rest))
                 let arg_binds: Vec<Ident> = args.iter().map(|_| Ident::fresh(&"x")).collect();
@@ -61,7 +65,11 @@ impl Normalizer {
                     |rest, (bind, arg)| self.normalize_expr_with_cont(arg, bind, rest),
                 )
             }
-            ast::Expr::Func { pars, body, .. } => {
+            ast::Expr::Func {
+                pars,
+                body,
+                span: _,
+            } => {
                 // normalize(fun(x,y) => e, hole, ctx) =
                 // let f(x,y) = normalize_top(e) in ctx[hole:=f]
                 let func_bind = Ident::fresh(&"f");
@@ -75,7 +83,18 @@ impl Normalizer {
                     cont: Box::new(subst(rest, *bind, Atom::Var(func_bind))),
                 }
             }
-            ast::Expr::App { func, args, .. } => {
+            ast::Expr::Cons {
+                cons,
+                flds,
+                span: _,
+            } => {
+                todo!()
+            }
+            ast::Expr::App {
+                func,
+                args,
+                span: _,
+            } => {
                 // normalize(e0(e1,..,en), hole, ctx) =
                 // normalize(en,xn,
                 //   ...
@@ -98,7 +117,10 @@ impl Normalizer {
                     )
             }
             ast::Expr::Ifte {
-                cond, trbr, flbr, ..
+                cond,
+                trbr,
+                flbr,
+                span: _,
             } => {
                 // normalize(if e1 then e2 else e3, hole, ctx) =
                 // letjoin j(hole) = ctx in
@@ -149,6 +171,13 @@ impl Normalizer {
                     cont: Box::new(self.normalize_expr_with_cont(cond, &x1, ifte)),
                 }
             }
+            ast::Expr::Case {
+                expr,
+                rules,
+                span: _,
+            } => {
+                todo!()
+            }
             ast::Expr::Stmt { stmt, cont, .. } => {
                 // normalize(let x = e1; e2, hole, ctx) =
                 // normalize(e1, x, normalize(e2, hole, ctx)
@@ -171,7 +200,13 @@ impl Normalizer {
     pub fn normalize_decl(&mut self, decl: &ast::Decl) -> anf::Decl {
         match decl {
             ast::Decl::Func {
-                func, pars, body, ..
+                ident,
+                polys: _,
+                pars,
+                res: _,
+                span1: _,
+                body,
+                span2: _,
             } => {
                 let (pars, _): (_, Vec<ast::Type>) = pars.iter().cloned().unzip();
                 let bind = Ident::fresh(&"r");
@@ -183,11 +218,19 @@ impl Normalizer {
                     },
                 );
                 anf::Decl {
-                    func: *func,
+                    func: *ident,
                     pars,
                     body,
                     info: anf::CallInfo::NoInfo,
                 }
+            }
+            ast::Decl::Data {
+                ident,
+                polys,
+                vars,
+                span: _,
+            } => {
+                todo!()
             }
         }
     }

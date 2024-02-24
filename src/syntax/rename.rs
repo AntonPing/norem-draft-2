@@ -66,6 +66,13 @@ impl Renamer {
                 }
                 Ok(())
             }
+            Expr::Cons {
+                cons,
+                flds,
+                span: _,
+            } => {
+                todo!()
+            }
             Expr::Func {
                 pars,
                 body,
@@ -101,6 +108,13 @@ impl Renamer {
                 self.rename_expr(flbr)?;
                 Ok(())
             }
+            Expr::Case {
+                expr,
+                rules,
+                span: _,
+            } => {
+                todo!()
+            }
             Expr::Stmt {
                 stmt,
                 cont,
@@ -134,6 +148,13 @@ impl Renamer {
         match typ {
             Type::Lit { lit: _ } => Ok(()),
             Type::Var { ident } => self.rename_typ_ident(ident),
+            Type::Cons { cons, args } => {
+                self.rename_typ_ident(cons)?;
+                for arg in args.iter_mut() {
+                    self.rename_type(arg)?;
+                }
+                Ok(())
+            }
             Type::Func { pars, res } => {
                 for par in pars.iter_mut() {
                     self.rename_type(par)?;
@@ -146,7 +167,7 @@ impl Renamer {
     fn rename_decl(&mut self, decl: &mut Decl) -> RenameResult {
         match decl {
             Decl::Func {
-                func: _,
+                ident: _,
                 polys,
                 pars,
                 res,
@@ -169,6 +190,14 @@ impl Renamer {
                 self.typ_ctx.leave_scope();
                 Ok(())
             }
+            Decl::Data {
+                ident,
+                polys,
+                vars,
+                span: _,
+            } => {
+                todo!()
+            }
         }
     }
 
@@ -177,7 +206,15 @@ impl Renamer {
         self.val_ctx.enter_scope();
         for decl in decls.iter_mut() {
             match decl {
-                Decl::Func { func, .. } => self.intro_val_ident(func),
+                Decl::Func { ident, .. } => self.intro_val_ident(ident),
+                Decl::Data {
+                    ident,
+                    polys,
+                    vars,
+                    span: _,
+                } => {
+                    todo!()
+                }
             }
         }
         for decl in decls.iter_mut() {

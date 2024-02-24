@@ -418,7 +418,7 @@ impl<'src> Parser<'src> {
         match self.peek_token() {
             Token::Function => {
                 self.match_token(Token::Function)?;
-                let func = self.parse_lid()?;
+                let ident = self.parse_lid()?;
                 let polys = self
                     .option(|par| {
                         par.delimited_list(Token::LBracket, Token::Comma, Token::RBracket, |par| {
@@ -448,7 +448,7 @@ impl<'src> Parser<'src> {
                 let end2 = self.end_pos();
                 let span2 = Span { start, end: end2 };
                 Some(Decl::Func {
-                    func,
+                    ident,
                     pars,
                     polys,
                     res,

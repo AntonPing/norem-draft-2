@@ -16,6 +16,7 @@ impl From<&Type> for UnifyType {
         match value {
             Type::Lit { lit } => UnifyType::Lit(*lit),
             Type::Var { ident } => UnifyType::Var(*ident),
+            Type::Cons { cons, args } => todo!(),
             Type::Func { pars, res } => {
                 let pars = pars.iter().map(|par| par.into()).collect();
                 let res = Box::new(res.deref().into());
