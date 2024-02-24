@@ -86,11 +86,11 @@ pub enum Token {
     TyBool,
     #[token("Char")]
     TyChar,
-    #[regex("[a-z]([a-zA-Z]|_)*")]
+    #[regex("[a-z]([a-zA-Z0-9]|_)*")]
     LowerIdent,
-    #[regex("[A-Z]([a-zA-Z]|_)*")]
+    #[regex("[A-Z]([a-zA-Z0-9]|_)*")]
     UpperIdent,
-    #[regex("@[a-zA-Z]([a-zA-Z]|_)*")]
+    #[regex("@[a-zA-Z]([a-zA-Z0-9]|_)*")]
     PrimOpr,
     #[token("//", line_comment)]
     LineComment,

@@ -711,16 +711,16 @@ begin
     | Cons(x, xs) => Cons(f(x), map(f,xs))
     end
 end
-datatype Listt[T] where
-| Nill
-| Conss { head: T, tail: Listt[T] }
+datatype List2[T] where
+| Nil2
+| Cons2 { head: T, tail: List2[T] }
 end
-function mapp[T, U](f: fn(T) -> U, xs: List[T]) -> List[U]
+function map2[T, U](f: fn(T) -> U, xs: List2[T]) -> List2[U]
 begin
     match xs with
-    | Nill => Nill
-    | Conss { head, tail } => 
-        Conss { head: f(head), tail: mapp(f,tail) }
+    | Nil2 => Nil2
+    | Cons2 { head, tail } => 
+        Cons2 { head: f(head), tail: map2(f,tail) }
     end
 end
 function f(x: Int) -> Int
