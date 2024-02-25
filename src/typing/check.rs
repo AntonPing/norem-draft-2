@@ -1,18 +1,20 @@
 use crate::syntax::ast::*;
-use crate::typing::unify::{UnifySolver, UnifyType};
+use crate::typing::unify::{self, UnifySolver, UnifyType};
 use crate::utils::ident::Ident;
 use std::collections::HashMap;
 use std::ops::Deref;
 
 struct TypeChecker {
-    context: HashMap<Ident, (Vec<Ident>, UnifyType)>,
+    val_ctx: HashMap<Ident, (Vec<Ident>, UnifyType)>,
+    cons_ctx: HashMap<Ident, (Vec<Ident>, Vec<Labeled<UnifyType>>, UnifyType)>,
     solver: UnifySolver,
 }
 
 impl TypeChecker {
     pub fn new() -> TypeChecker {
         TypeChecker {
-            context: HashMap::new(),
+            val_ctx: HashMap::new(),
+            cons_ctx: HashMap::new(),
             solver: UnifySolver::new(),
         }
     }
@@ -28,7 +30,7 @@ impl TypeChecker {
                 Ok(typ)
             }
             Expr::Var { ident, span: _ } => {
-                if let Some((polys, typ)) = self.context.get(&ident) {
+                if let Some((polys, typ)) = self.val_ctx.get(&ident) {
                     Ok(self.solver.instantiate(polys, typ))
                 } else {
                     Err("Can't find variable in scope!".to_string())
@@ -64,7 +66,26 @@ impl TypeChecker {
                 flds,
                 span: _,
             } => {
-                todo!()
+                if let Some((polys, args, res)) = self.cons_ctx.get(cons).cloned() {
+                    if flds.len() == args.len() {
+                        let map = self.solver.make_instantiate_map(&polys);
+                        for arg in args {
+                            if let Some(fld) = flds.iter().find(|fld| fld.label == arg.label) {
+                                let typ1 = self.check_expr(&fld.data)?;
+                                let typ2 = unify::substitute(&map, &arg.data);
+                                self.solver.unify(&typ1, &typ2)?;
+                            } else {
+                                return Err("Construct application with wrong label!".to_string());
+                            }
+                        }
+                        let res = unify::substitute(&map, &res);
+                        Ok(res)
+                    } else {
+                        Err("Construct application with wrong argument length!".to_string())
+                    }
+                } else {
+                    Err(format!("Can't find constructor {} in scope!", cons))
+                }
             }
             Expr::Func {
                 pars,
@@ -75,7 +96,7 @@ impl TypeChecker {
                     .iter()
                     .map(|par| {
                         let cell = self.solver.new_cell();
-                        self.context.insert(*par, (Vec::new(), cell.clone()));
+                        self.val_ctx.insert(*par, (Vec::new(), cell.clone()));
                         cell
                     })
                     .collect();
@@ -118,7 +139,12 @@ impl TypeChecker {
                 rules,
                 span: _,
             } => {
-                todo!()
+                let lhs = self.check_expr(expr)?;
+                let rhs = self.solver.new_cell();
+                for rule in rules.iter() {
+                    self.check_rule(rule, &lhs, &rhs)?;
+                }
+                Ok(rhs)
             }
             Expr::Stmt {
                 stmt,
@@ -135,7 +161,7 @@ impl TypeChecker {
                     if let Some(ty_anno) = ty_anno {
                         self.solver.unify(&ty, &ty_anno.into())?;
                     }
-                    self.context.insert(*ident, (Vec::new(), ty));
+                    self.val_ctx.insert(*ident, (Vec::new(), ty));
                     let res_ty = self.check_expr(cont)?;
                     Ok(res_ty)
                 }
@@ -146,6 +172,53 @@ impl TypeChecker {
                     Ok(res_ty)
                 }
             },
+        }
+    }
+
+    fn check_rule(&mut self, rule: &Rule, lhs: &UnifyType, rhs: &UnifyType) -> CheckResult<()> {
+        self.check_pattern(&rule.patn, lhs)?;
+        let typ = self.check_expr(&rule.body)?;
+        self.solver.unify(&typ, rhs)?;
+        Ok(())
+    }
+
+    fn check_pattern(&mut self, patn: &Pattern, lhs: &UnifyType) -> CheckResult<()> {
+        match patn {
+            Pattern::Var { ident, span: _ } => {
+                self.val_ctx.insert(*ident, (Vec::new(), lhs.clone()));
+                Ok(())
+            }
+            Pattern::Lit { lit, span: _ } => {
+                self.solver
+                    .unify(&UnifyType::Lit(lit.get_lit_type()), lhs)?;
+                Ok(())
+            }
+            Pattern::Cons {
+                cons,
+                patns,
+                span: _,
+            } => {
+                if let Some((polys, args, res)) = self.cons_ctx.get(cons).cloned() {
+                    if patns.len() == args.len() {
+                        let map = self.solver.make_instantiate_map(&polys);
+                        for arg in args {
+                            if let Some(patn) = patns.iter().find(|patn| patn.label == arg.label) {
+                                let typ = unify::substitute(&map, &arg.data);
+                                self.check_pattern(&patn.data, &typ)?;
+                            } else {
+                                return Err("Construct application with wrong label!".to_string());
+                            }
+                        }
+                        let res = unify::substitute(&map, &res);
+                        self.solver.unify(&res, lhs)
+                    } else {
+                        Err("Construct application with wrong argument length!".to_string())
+                    }
+                } else {
+                    Err(format!("Can't find constructor {} in scope!", cons))
+                }
+            }
+            Pattern::Wild { span: _ } => Ok(()),
         }
     }
 
@@ -161,20 +234,13 @@ impl TypeChecker {
                 span2: _,
             } => {
                 for (par, typ) in pars {
-                    self.context.insert(*par, (Vec::new(), typ.into()));
+                    self.val_ctx.insert(*par, (Vec::new(), typ.into()));
                 }
                 let res_ty = self.check_expr(body)?;
                 self.solver.unify(&res_ty, &res.into())?;
                 Ok(())
             }
-            Decl::Data {
-                ident,
-                polys,
-                vars,
-                span: _,
-            } => {
-                todo!()
-            }
+            Decl::Data { .. } => Ok(()),
         }
     }
 
@@ -195,7 +261,7 @@ impl TypeChecker {
                         pars.iter().map(|(par, typ)| (par, typ.into())).unzip();
                     let res_ty: UnifyType = res.into();
                     let func_ty = UnifyType::Func(par_tys, Box::new(res_ty));
-                    self.context.insert(*ident, (polys.clone(), func_ty));
+                    self.val_ctx.insert(*ident, (polys.clone(), func_ty));
                 }
                 Decl::Data {
                     ident,
@@ -203,7 +269,26 @@ impl TypeChecker {
                     vars,
                     span: _,
                 } => {
-                    todo!()
+                    let res = UnifyType::Cons(
+                        *ident,
+                        polys.iter().map(|poly| UnifyType::Var(*poly)).collect(),
+                    );
+                    for var in vars {
+                        let flds = var
+                            .flds
+                            .iter()
+                            .map(|fld| {
+                                let Labeled { label, data, span } = fld;
+                                Labeled {
+                                    label: *label,
+                                    data: data.into(),
+                                    span: span.clone(),
+                                }
+                            })
+                            .collect();
+                        self.cons_ctx
+                            .insert(var.cons, (polys.clone(), flds, res.clone()));
+                    }
                 }
             }
         }
@@ -230,12 +315,36 @@ pub fn check_module(modl: &Module) -> CheckResult<()> {
 #[ignore = "just to see result"]
 fn check_test() {
     let s = r#"
-module test where
+module Test where
+datatype List[T] where
+| Nil
+| Cons(T, List[T])
+end
+function map[T, U](f: fn(T) -> U, xs: List[T]) -> List[U]
+begin
+    match xs with
+    | Nil => Nil
+    | Cons(x, xs) => Cons(f(x), map(f,xs))
+    end
+end
+datatype List2[T] where
+| Nil2
+| Cons2 { head: T, tail: List2[T] }
+end
+function map2[T, U](f: fn(T) -> U, xs: List2[T]) -> List2[U]
+begin
+    match xs with
+    | Nil2 => Nil2
+    | Cons2 { head, tail } => 
+        Cons2 { head: f(head), tail: map2(f,tail) }
+    end
+end
 function f(x: Int) -> Int
 begin
-    let h = fn(x) => @iadd(x, 1);
-    let r = g(x);
-    r
+    let f = fn(x) => @iadd(x,1);
+    let res = f(42);
+    let test = if @icmpls(1, 2) then 3 else 4;
+    res
 end
 function g(x: Int) -> Int
 begin
@@ -245,10 +354,6 @@ end
 function id[T](x: T) -> T
 begin
     x
-end
-function test() -> Int
-begin
-    id(42)
 end
 "#;
 
