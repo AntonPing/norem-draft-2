@@ -271,7 +271,7 @@ fn calculate_reachable(
     loop {
         for name in reachable.iter() {
             for new_name in &call_graph[name] {
-                if !reachable.contains(name) {
+                if !reachable.contains(new_name) {
                     new_reachable.push(*new_name);
                 }
             }
