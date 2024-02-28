@@ -108,12 +108,24 @@ impl Renamer {
                 self.context.leave_scope()
             }
             Expr::Ifte {
-                cond,
+                cond: _,
                 args,
                 trbr,
                 flbr,
-            } => todo!(),
-            Expr::Switch { arg, brchs, dflt } => todo!(),
+            } => {
+                args.iter_mut().for_each(|arg| self.visit_atom(arg));
+                self.visit_expr(trbr);
+                self.visit_expr(flbr);
+            }
+            Expr::Switch { arg, brchs, dflt } => {
+                self.visit_atom(arg);
+                for (_, brch) in brchs.iter_mut() {
+                    self.visit_expr(brch);
+                }
+                if let Some(dflt) = dflt {
+                    self.visit_expr(dflt)
+                }
+            }
             Expr::Retn { res } => {
                 self.visit_atom(res);
             }
