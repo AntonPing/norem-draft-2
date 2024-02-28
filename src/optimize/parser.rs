@@ -1,11 +1,9 @@
 use super::anf::*;
 use crate::utils::ident::Ident;
 use nom::branch::alt;
-use nom::bytes::complete::tag;
-use nom::bytes::complete::take_while;
+use nom::bytes::complete::{tag, take_while};
 use nom::character::complete::{alpha1, digit1};
-use nom::combinator::map;
-use nom::combinator::value;
+use nom::combinator::{map, opt, value};
 use nom::multi::{many0, separated_list0};
 use nom::IResult;
 
@@ -104,6 +102,17 @@ fn brch_opr(input: &str) -> IResult<&str, BrchOpr> {
     ))(input)
 }
 
+fn if_cond(input: &str) -> IResult<&str, IfCond> {
+    let (input, _) = skip_space(input)?;
+    alt((
+        value(IfCond::BTrue, tag("btrue")),
+        value(IfCond::BFalse, tag("bfalse")),
+        value(IfCond::ICmpGr, tag("icmpgr")),
+        value(IfCond::ICmpEq, tag("icmpeq")),
+        value(IfCond::ICmpLs, tag("icmpls")),
+    ))(input)
+}
+
 fn expr_decls(input: &str) -> IResult<&str, Expr> {
     let (input, _) = skip_space_tag("decl", input)?;
     let (input, decls) = many0(decl)(input)?;
@@ -177,6 +186,49 @@ fn expr_call(input: &str) -> IResult<&str, Expr> {
     ))
 }
 
+fn expr_ifte(input: &str) -> IResult<&str, Expr> {
+    let (input, _) = skip_space_tag("if", input)?;
+    let (input, cond) = if_cond(input)?;
+    let (input, _) = skip_space_tag("(", input)?;
+    let (input, args) = separated_list0(|input| skip_space_tag(",", input), atom)(input)?;
+    let (input, _) = skip_space_tag(")", input)?;
+    let (input, _) = skip_space_tag("then", input)?;
+    let (input, trbr) = expr(input)?;
+    let (input, _) = skip_space_tag("else", input)?;
+    let (input, flbr) = expr(input)?;
+    Ok((
+        input,
+        Expr::Ifte {
+            cond,
+            args,
+            trbr: Box::new(trbr),
+            flbr: Box::new(flbr),
+        },
+    ))
+}
+
+fn expr_switch(input: &str) -> IResult<&str, Expr> {
+    let (input, _) = skip_space_tag("switch", input)?;
+    let (input, arg) = atom(input)?;
+    let (input, _) = skip_space_tag("of", input)?;
+    let (input, brchs) = many0(|input| {
+        let (input, _) = skip_space_tag("case", input)?;
+        let (input, i) = int(input)?;
+        let (input, _) = skip_space_tag(":", input)?;
+        let (input, brch) = expr(input)?;
+        Ok((input, (i as usize, brch)))
+    })(input)?;
+
+    let (input, dflt) = opt(|input| {
+        let (input, _) = skip_space_tag("default", input)?;
+        let (input, _) = skip_space_tag(":", input)?;
+        let (input, brch) = expr(input)?;
+        Ok((input, Box::new(brch)))
+    })(input)?;
+    let (input, _) = skip_space_tag("end", input)?;
+    Ok((input, Expr::Switch { arg, brchs, dflt }))
+}
+
 fn expr_retn(input: &str) -> IResult<&str, Expr> {
     let (input, _) = skip_space_tag("return", input)?;
     let (input, res) = atom(input)?;
@@ -185,7 +237,15 @@ fn expr_retn(input: &str) -> IResult<&str, Expr> {
 }
 
 fn expr(input: &str) -> IResult<&str, Expr> {
-    alt((expr_decls, expr_prim, expr_brch, expr_call, expr_retn))(input)
+    alt((
+        expr_decls,
+        expr_prim,
+        expr_brch,
+        expr_call,
+        expr_ifte,
+        expr_switch,
+        expr_retn,
+    ))(input)
 }
 
 fn decl(input: &str) -> IResult<&str, Decl> {
@@ -249,6 +309,18 @@ fn top2(x) begin
                 { return z; }
                 { return z; }
             }
+        end
+        fn h(x) begin
+            if btrue(x)
+            then
+                return 1;
+            else
+                switch x of
+                case 2:
+                    return 1;
+                case 4:
+                    return 2;
+                end
         end
     in
         let x = @iadd(1, 2);
