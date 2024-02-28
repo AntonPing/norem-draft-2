@@ -253,6 +253,13 @@ impl Optimizer {
                     cont,
                 }
             }
+            anf::Expr::Ifte {
+                cond,
+                args,
+                trbr,
+                flbr,
+            } => todo!(),
+            anf::Expr::Switch { arg, brchs, dflt } => todo!(),
             anf::Expr::Retn { res } => {
                 let res = self.visit_atom(res);
                 self.mark_used(&res);

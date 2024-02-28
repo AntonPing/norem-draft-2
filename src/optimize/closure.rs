@@ -193,6 +193,13 @@ impl ClosConv {
                     }),
                 }
             }
+            Expr::Ifte {
+                cond,
+                args,
+                trbr,
+                flbr,
+            } => todo!(),
+            Expr::Switch { arg, brchs, dflt } => todo!(),
             Expr::Retn { res } => {
                 let res = self.visit_atom(res);
                 Expr::Retn { res }

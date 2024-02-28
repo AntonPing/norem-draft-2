@@ -98,6 +98,13 @@ impl fmt::Display for Expr {
                 let args = args.iter().format(&", ");
                 write!(f, "let {bind} = {func}({args});{NWLN}{cont}")
             }
+            Expr::Ifte {
+                cond,
+                args,
+                trbr,
+                flbr,
+            } => todo!(),
+            Expr::Switch { arg, brchs, dflt } => todo!(),
             Expr::Retn { res } => {
                 write!(f, "return {res};")
             }

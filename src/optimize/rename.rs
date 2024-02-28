@@ -107,6 +107,13 @@ impl Renamer {
                 self.visit_expr(cont);
                 self.context.leave_scope()
             }
+            Expr::Ifte {
+                cond,
+                args,
+                trbr,
+                flbr,
+            } => todo!(),
+            Expr::Switch { arg, brchs, dflt } => todo!(),
             Expr::Retn { res } => {
                 self.visit_atom(res);
             }

@@ -104,6 +104,13 @@ impl InlineScan {
                 }
                 self.occur_map.remove(bind);
             }
+            Expr::Ifte {
+                cond,
+                args,
+                trbr,
+                flbr,
+            } => todo!(),
+            Expr::Switch { arg, brchs, dflt } => todo!(),
             Expr::Retn { res } => {
                 self.visit_atom(res);
             }
@@ -224,6 +231,13 @@ impl InlinePerform {
                     cont,
                 }
             }
+            Expr::Ifte {
+                cond,
+                args,
+                trbr,
+                flbr,
+            } => todo!(),
+            Expr::Switch { arg, brchs, dflt } => todo!(),
             Expr::Retn { res } => Expr::Retn { res },
         }
     }
@@ -305,6 +319,13 @@ fn continue_with(joins: &mut HashSet<Ident>, expr: Expr, hole: Ident, rest: Expr
                 unreachable!()
             }
         }
+        Expr::Ifte {
+            cond,
+            args,
+            trbr,
+            flbr,
+        } => todo!(),
+        Expr::Switch { arg, brchs, dflt } => todo!(),
         Expr::Retn { res } => Expr::Prim {
             bind: hole,
             prim: PrimOpr::Move,

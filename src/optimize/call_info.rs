@@ -145,6 +145,13 @@ impl CallInfoScan {
                 }
                 self.info_map.remove(bind);
             }
+            Expr::Ifte {
+                cond,
+                args,
+                trbr,
+                flbr,
+            } => todo!(),
+            Expr::Switch { arg, brchs, dflt } => todo!(),
             Expr::Retn { res } => {
                 self.visit_atom(res);
             }

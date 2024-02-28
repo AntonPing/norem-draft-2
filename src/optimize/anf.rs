@@ -117,6 +117,27 @@ impl BrchOpr {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum IfCond {
+    BTrue,
+    BFalse,
+    ICmpGr,
+    ICmpEq,
+    ICmpLs,
+}
+
+impl IfCond {
+    pub fn get_arity(&self) -> Option<usize> {
+        match self {
+            IfCond::BTrue => Some(1),
+            IfCond::BFalse => Some(1),
+            IfCond::ICmpGr => Some(2),
+            IfCond::ICmpEq => Some(2),
+            IfCond::ICmpLs => Some(2),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CallInfo {
     NoInfo,
@@ -154,6 +175,17 @@ pub enum Expr {
         func: Atom,
         args: Vec<Atom>,
         cont: Box<Expr>,
+    },
+    Ifte {
+        cond: IfCond,
+        args: Vec<Atom>,
+        trbr: Box<Expr>,
+        flbr: Box<Expr>,
+    },
+    Switch {
+        arg: Atom,
+        brchs: Vec<(usize, Expr)>,
+        dflt: Option<Box<Expr>>,
     },
     Retn {
         res: Atom,

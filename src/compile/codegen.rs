@@ -251,6 +251,13 @@ impl Codegen {
                 self.reg_map.insert(*bind, ret);
                 self.visit_expr(cont);
             }
+            Expr::Ifte {
+                cond,
+                args,
+                trbr,
+                flbr,
+            } => todo!(),
+            Expr::Switch { arg, brchs, dflt } => todo!(),
             Expr::Retn { res } => {
                 let reg = self.visit_atom(res);
                 self.code.push(Instr::Ret(reg));
