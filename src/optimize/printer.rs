@@ -41,6 +41,18 @@ impl fmt::Display for BrchOpr {
     }
 }
 
+impl fmt::Display for IfCond {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IfCond::BTrue => "btrue".fmt(f),
+            IfCond::BFalse => "bfalse".fmt(f),
+            IfCond::ICmpGr => "icmpgr".fmt(f),
+            IfCond::ICmpEq => "icmpeq".fmt(f),
+            IfCond::ICmpLs => "icmpls".fmt(f),
+        }
+    }
+}
+
 impl fmt::Display for Decl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Decl {
@@ -103,8 +115,24 @@ impl fmt::Display for Expr {
                 args,
                 trbr,
                 flbr,
-            } => todo!(),
-            Expr::Switch { arg, brchs, dflt } => todo!(),
+            } => {
+                let args = args.iter().format(&", ");
+                write!(f, "if {cond}({args})")?;
+                write!(f, "{NWLN}then{INDT}{NWLN}{trbr}{DEDT}")?;
+                write!(f, "{NWLN}else{INDT}{NWLN}{flbr}{DEDT}")?;
+                Ok(())
+            }
+            Expr::Switch { arg, brchs, dflt } => {
+                write!(f, "switch {arg} of")?;
+                for (i, brch) in brchs {
+                    write!(f, "{NWLN}case {i}:{INDT}{NWLN}{brch}{DEDT}")?;
+                }
+                if let Some(dflt) = dflt {
+                    write!(f, "{NWLN}default:{INDT}{NWLN}{dflt}{DEDT}")?;
+                }
+                write!(f, "{NWLN}end")?;
+                Ok(())
+            }
             Expr::Retn { res } => {
                 write!(f, "return {res};")
             }
