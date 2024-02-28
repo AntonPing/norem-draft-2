@@ -128,16 +128,16 @@ impl InlinePerform {
     fn visit_module(&mut self, modl: Module) -> Module {
         let Module { name, decls } = modl;
 
-        let decls: Vec<Decl> = decls
-            .into_iter()
-            .map(|decl| self.visit_decl(decl))
-            .collect();
-
         decls.iter().for_each(|decl| {
             if self.inline_mark.contains(&decl.func) {
                 self.map.insert(decl.func, decl.clone());
             }
         });
+
+        let decls: Vec<Decl> = decls
+            .into_iter()
+            .map(|decl| self.visit_decl(decl))
+            .collect();
 
         Module { name, decls }
     }
@@ -163,19 +163,17 @@ impl InlinePerform {
             Expr::Decls { decls, cont } => {
                 let decls: Vec<Decl> = decls
                     .into_iter()
-                    .map(|decl| self.visit_decl(decl))
+                    .map(|decl| {
+                        if self.inline_mark.contains(&decl.func) {
+                            self.map.insert(decl.func, decl.clone());
+                        }
+                        decl
+                    })
                     .collect();
 
                 let decls: Vec<Decl> = decls
                     .into_iter()
-                    .flat_map(|decl| {
-                        if self.inline_mark.contains(&decl.func) {
-                            self.map.insert(decl.func, decl);
-                            None
-                        } else {
-                            Some(decl)
-                        }
-                    })
+                    .map(|decl| self.visit_decl(decl))
                     .collect();
 
                 let cont = Box::new(self.visit_expr(*cont));
