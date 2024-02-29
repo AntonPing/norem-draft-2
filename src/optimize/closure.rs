@@ -198,8 +198,26 @@ impl ClosConv {
                 args,
                 trbr,
                 flbr,
-            } => todo!(),
-            Expr::Switch { arg, brchs, dflt } => todo!(),
+            } => {
+                let trbr = Box::new(self.visit_expr(*trbr));
+                let flbr = Box::new(self.visit_expr(*flbr));
+                let args: Vec<Atom> = args.into_iter().map(|arg| self.visit_atom(arg)).collect();
+                Expr::Ifte {
+                    cond,
+                    args,
+                    trbr,
+                    flbr,
+                }
+            }
+            Expr::Switch { arg, brchs, dflt } => {
+                let brchs = brchs
+                    .into_iter()
+                    .map(|(i, brch)| (i, self.visit_expr(brch)))
+                    .collect();
+                let arg = self.visit_atom(arg);
+                let dflt = dflt.map(|dflt| Box::new(self.visit_expr(*dflt)));
+                Expr::Switch { arg, brchs, dflt }
+            }
             Expr::Retn { res } => {
                 let res = self.visit_atom(res);
                 Expr::Retn { res }
