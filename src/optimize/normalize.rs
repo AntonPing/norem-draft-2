@@ -220,31 +220,31 @@ impl Normalizer {
                 let x3 = Ident::fresh(&"x");
                 let r2 = Ident::fresh(&"r");
                 let r3 = Ident::fresh(&"r");
-                let ifte = anf::Expr::Brch {
-                    prim: anf::BrchOpr::Ifte,
+                let trbr = self.normalize_expr_with_cont(
+                    trbr,
+                    &x2,
+                    anf::Expr::Call {
+                        bind: r2,
+                        func: Atom::Var(j),
+                        args: vec![Atom::Var(x2)],
+                        cont: Box::new(anf::Expr::Retn { res: Atom::Var(r2) }),
+                    },
+                );
+                let flbr = self.normalize_expr_with_cont(
+                    flbr,
+                    &x3,
+                    anf::Expr::Call {
+                        bind: r3,
+                        func: Atom::Var(j),
+                        args: vec![Atom::Var(x3)],
+                        cont: Box::new(anf::Expr::Retn { res: Atom::Var(r3) }),
+                    },
+                );
+                let ifte = anf::Expr::Ifte {
+                    cond: anf::IfCond::BTrue,
                     args: vec![Atom::Var(x1)],
-                    conts: vec![
-                        self.normalize_expr_with_cont(
-                            trbr,
-                            &x2,
-                            anf::Expr::Call {
-                                bind: r2,
-                                func: Atom::Var(j),
-                                args: vec![Atom::Var(x2)],
-                                cont: Box::new(anf::Expr::Retn { res: Atom::Var(r2) }),
-                            },
-                        ),
-                        self.normalize_expr_with_cont(
-                            flbr,
-                            &x3,
-                            anf::Expr::Call {
-                                bind: r3,
-                                func: Atom::Var(j),
-                                args: vec![Atom::Var(x3)],
-                                cont: Box::new(anf::Expr::Retn { res: Atom::Var(r3) }),
-                            },
-                        ),
-                    ],
+                    trbr: Box::new(trbr),
+                    flbr: Box::new(flbr),
                 };
                 anf::Expr::Decls {
                     decls: vec![anf::Decl {
@@ -429,15 +429,14 @@ impl Normalizer {
                     for cons in cons_set {
                         assert!(vars.iter().any(|var| var.cons == cons));
                     }
-                    let mut brchs: Vec<anf::Expr> = Vec::new();
-                    for var in vars {
+                    let mut brchs: Vec<(usize, anf::Expr)> = Vec::new();
+                    for (i, var) in vars.iter().enumerate() {
                         let binds = var
                             .flds
                             .iter()
                             .map(|fld| (fld.label, Ident::fresh(&"o")))
                             .collect();
                         let (new_mat, hits) = mat.specialize_cons(j, &var.cons, &binds);
-                        println!("hits: {:?}", hits);
 
                         let brch = binds.iter().enumerate().fold(
                             self.normalize_match(&new_mat, decls),
@@ -455,7 +454,7 @@ impl Normalizer {
                             args: vec![Atom::Var(mat.objs[j])],
                             cont: Box::new(cont),
                         });
-                        brchs.push(brch);
+                        brchs.push((i, brch));
                     }
 
                     let t = Ident::fresh(&"t");
@@ -463,10 +462,10 @@ impl Normalizer {
                         bind: t,
                         prim: PrimOpr::Select,
                         args: vec![Atom::Var(mat.objs[j]), Atom::Int(0)],
-                        cont: Box::new(anf::Expr::Brch {
-                            prim: anf::BrchOpr::Switch,
-                            args: vec![Atom::Var(t)],
-                            conts: brchs,
+                        cont: Box::new(anf::Expr::Switch {
+                            arg: Atom::Var(t),
+                            brchs,
+                            dflt: None,
                         }),
                     }
                 }
