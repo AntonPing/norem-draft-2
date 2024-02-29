@@ -256,8 +256,78 @@ impl Codegen {
                 args,
                 trbr,
                 flbr,
-            } => todo!(),
-            Expr::Switch { arg, brchs, dflt } => todo!(),
+            } => {
+                let args: Vec<Reg> = args.iter().map(|arg| self.visit_atom(arg)).collect();
+                let label = Ident::fresh(&"label");
+                match (cond, &args[..]) {
+                    (anf::IfCond::BTrue, [arg]) => {
+                        self.code.push(Instr::JmpFl(*arg, label));
+                    }
+                    (anf::IfCond::BFalse, [arg]) => {
+                        self.code.push(Instr::JmpTr(*arg, label));
+                    }
+                    (anf::IfCond::ICmpGr, [arg1, arg2]) => {
+                        let temp_reg = self.new_reg();
+                        self.code.push(Instr::ICmpLs(temp_reg, *arg1, *arg2));
+                        self.code.push(Instr::JmpFl(temp_reg, label));
+                    }
+                    (anf::IfCond::ICmpEq, [arg1, arg2]) => {
+                        let temp_reg = self.new_reg();
+                        self.code.push(Instr::ICmpEq(temp_reg, *arg1, *arg2));
+                        self.code.push(Instr::JmpFl(temp_reg, label));
+                    }
+                    (anf::IfCond::ICmpLs, [arg1, arg2]) => {
+                        let temp_reg = self.new_reg();
+                        self.code.push(Instr::ICmpLs(temp_reg, *arg1, *arg2));
+                        self.code.push(Instr::JmpFl(temp_reg, label));
+                    }
+                    (_, _) => {
+                        unreachable!()
+                    }
+                }
+                self.visit_expr(trbr);
+                self.code.push(Instr::Label(label));
+                self.visit_expr(flbr);
+            }
+            Expr::Switch { arg, brchs, dflt } => {
+                fn binary_search(
+                    slf: &mut Codegen,
+                    temp_reg: Reg,
+                    arg: Reg,
+                    brchs: &[(usize, Ident, &Expr)],
+                ) {
+                    assert!(!brchs.is_empty());
+                    if brchs.len() == 1 {
+                        slf.code.push(Instr::Jmp(brchs[0].1));
+                    } else {
+                        let mid_len = brchs.len() / 2;
+                        let mid_id = brchs[mid_len].0;
+                        let label = Ident::fresh(&"branch");
+                        slf.code.push(Instr::LitI(temp_reg, mid_id as i64));
+                        slf.code.push(Instr::ICmpLs(temp_reg, arg, temp_reg));
+                        slf.code.push(Instr::JmpFl(temp_reg, label));
+                        binary_search(slf, temp_reg, arg, &brchs[0..mid_len]);
+                        slf.code.push(Instr::Label(label));
+                        binary_search(slf, temp_reg, arg, &brchs[mid_len..]);
+                    }
+                }
+                let brchs: Vec<(usize, Ident, &Expr)> = brchs
+                    .into_iter()
+                    .map(|(i, brch)| (*i, Ident::fresh(&"case"), brch))
+                    .collect();
+                let dflt = dflt.as_ref().map(|dflt| (Ident::fresh(&"default"), dflt));
+                let arg = self.visit_atom(arg);
+                let temp_reg = self.new_reg();
+                binary_search(self, temp_reg, arg, &brchs[..]);
+                for (_i, label, brch) in brchs {
+                    self.code.push(Instr::Label(label));
+                    self.visit_expr(&brch);
+                }
+                if let Some((label, dflt)) = dflt {
+                    self.code.push(Instr::Label(label));
+                    self.visit_expr(&dflt);
+                }
+            }
             Expr::Retn { res } => {
                 let reg = self.visit_atom(res);
                 self.code.push(Instr::Ret(reg));
