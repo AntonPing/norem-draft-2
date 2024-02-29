@@ -1,4 +1,4 @@
-use super::anf::{self, Atom, Module, PrimOpr};
+use super::anf::{self, Atom, IfCond, Module, PrimOpr};
 use crate::{optimize::anf::BrchOpr, utils::ident::Ident};
 use std::collections::{HashMap, HashSet};
 
@@ -258,8 +258,78 @@ impl Optimizer {
                 args,
                 trbr,
                 flbr,
-            } => todo!(),
-            anf::Expr::Switch { arg, brchs, dflt } => todo!(),
+            } => {
+                let args: Vec<Atom> = args.into_iter().map(|arg| self.visit_atom(arg)).collect();
+                match (cond, &args[..]) {
+                    (IfCond::BTrue, [Atom::Bool(p)]) => {
+                        if *p {
+                            self.visit_expr(*trbr)
+                        } else {
+                            self.visit_expr(*flbr)
+                        }
+                    }
+                    (IfCond::BFalse, [Atom::Bool(p)]) => {
+                        if !*p {
+                            self.visit_expr(*trbr)
+                        } else {
+                            self.visit_expr(*flbr)
+                        }
+                    }
+                    (IfCond::ICmpGr, [Atom::Int(a), Atom::Int(b)]) => {
+                        if a > b {
+                            self.visit_expr(*trbr)
+                        } else {
+                            self.visit_expr(*flbr)
+                        }
+                    }
+                    (IfCond::ICmpEq, [Atom::Int(a), Atom::Int(b)]) => {
+                        if a == b {
+                            self.visit_expr(*trbr)
+                        } else {
+                            self.visit_expr(*flbr)
+                        }
+                    }
+                    (IfCond::ICmpLs, [Atom::Int(a), Atom::Int(b)]) => {
+                        if a < b {
+                            self.visit_expr(*trbr)
+                        } else {
+                            self.visit_expr(*flbr)
+                        }
+                    }
+                    _ => {
+                        let trbr = Box::new(self.visit_expr(*trbr));
+                        let flbr = Box::new(self.visit_expr(*flbr));
+                        args.iter().for_each(|arg| self.mark_used(arg));
+                        anf::Expr::Ifte {
+                            cond,
+                            args,
+                            trbr,
+                            flbr,
+                        }
+                    }
+                }
+            }
+            anf::Expr::Switch { arg, brchs, dflt } => {
+                let arg = self.visit_atom(arg);
+
+                if let Atom::Int(n) = arg {
+                    if let Some((_, brch)) = brchs.into_iter().find(|(i, _)| *i == n as usize) {
+                        self.visit_expr(brch)
+                    } else if let Some(dflt) = dflt {
+                        self.visit_expr(*dflt)
+                    } else {
+                        panic!("switch fallthrough without default branch!")
+                    }
+                } else {
+                    let brchs = brchs
+                        .into_iter()
+                        .map(|(i, brch)| (i, self.visit_expr(brch)))
+                        .collect();
+                    let dflt = dflt.map(|dflt| Box::new(self.visit_expr(*dflt)));
+                    self.mark_used(&arg);
+                    anf::Expr::Switch { arg, brchs, dflt }
+                }
+            }
             anf::Expr::Retn { res } => {
                 let res = self.visit_atom(res);
                 self.mark_used(&res);
