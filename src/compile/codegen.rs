@@ -123,60 +123,41 @@ impl Codegen {
                 args,
                 cont,
             } => {
+                let args: Vec<Reg> = args.iter().map(|arg| self.visit_atom(arg)).collect();
                 let ret = self.new_reg();
-                match prim.get_arity() {
-                    Some(1) => {
-                        assert_eq!(args.len(), 1);
-                        match (prim, args[0]) {
-                            (PrimOpr::Move, arg1) => {
-                                let arg1 = self.visit_atom(&arg1);
-                                self.code.push(Instr::Move(ret, arg1));
-                            }
-                            _ => unreachable!(),
+                match (prim, &args[..]) {
+                    (PrimOpr::Move, [arg]) => {
+                        self.code.push(Instr::Move(ret, *arg));
+                    }
+                    (PrimOpr::IAdd, [arg1, arg2]) => {
+                        self.code.push(Instr::IAdd(ret, *arg1, *arg2));
+                    }
+                    (PrimOpr::ISub, [arg1, arg2]) => {
+                        self.code.push(Instr::ISub(ret, *arg1, *arg2));
+                    }
+                    (PrimOpr::IMul, [arg1, arg2]) => {
+                        self.code.push(Instr::IMul(ret, *arg1, *arg2));
+                    }
+                    (PrimOpr::ICmpLs, [arg1, arg2]) => {
+                        self.code.push(Instr::ICmpLs(ret, *arg1, *arg2));
+                    }
+                    (PrimOpr::ICmpEq, [arg1, arg2]) => {
+                        self.code.push(Instr::ICmpEq(ret, *arg1, *arg2));
+                    }
+                    (PrimOpr::ICmpGr, [arg1, arg2]) => {
+                        self.code.push(Instr::ICmpGr(ret, *arg1, *arg2));
+                    }
+                    (PrimOpr::Select, [arg1, arg2]) => {
+                        self.code.push(Instr::Load(ret, *arg1, *arg2));
+                    }
+                    (PrimOpr::Record, args) => {
+                        self.code.push(Instr::Alloc(ret, args.len()));
+                        for (i, arg) in args.iter().enumerate() {
+                            let idx = self.visit_atom(&Atom::Int(i as i64));
+                            self.code.push(Instr::Store(ret, idx, *arg));
                         }
                     }
-                    Some(2) => {
-                        assert_eq!(args.len(), 2);
-                        let arg1 = self.visit_atom(&args[0]);
-                        let arg2 = self.visit_atom(&args[1]);
-                        match prim {
-                            PrimOpr::IAdd => {
-                                self.code.push(Instr::IAdd(ret, arg1, arg2));
-                            }
-                            PrimOpr::ISub => {
-                                self.code.push(Instr::ISub(ret, arg1, arg2));
-                            }
-                            PrimOpr::IMul => {
-                                self.code.push(Instr::IMul(ret, arg1, arg2));
-                            }
-                            PrimOpr::ICmpLs => {
-                                self.code.push(Instr::ICmpLs(ret, arg1, arg2));
-                            }
-                            PrimOpr::ICmpEq => {
-                                self.code.push(Instr::ICmpEq(ret, arg1, arg2));
-                            }
-                            PrimOpr::ICmpGr => {
-                                self.code.push(Instr::ICmpGr(ret, arg1, arg2));
-                            }
-                            PrimOpr::Select => {
-                                self.code.push(Instr::Load(ret, arg1, arg2));
-                            }
-                            _ => unreachable!(),
-                        }
-                        assert_eq!(args.len(), 2);
-                    }
-                    Some(_) => unreachable!(),
-                    None => match prim {
-                        PrimOpr::Record => {
-                            self.code.push(Instr::Alloc(ret, args.len()));
-                            for (i, arg) in args.iter().enumerate() {
-                                let idx = self.visit_atom(&Atom::Int(i as i64));
-                                let arg = self.visit_atom(arg);
-                                self.code.push(Instr::Store(ret, idx, arg));
-                            }
-                        }
-                        _ => unreachable!(),
-                    },
+                    _ => unreachable!(),
                 }
                 self.reg_map.insert(*bind, ret);
                 self.visit_expr(cont);
