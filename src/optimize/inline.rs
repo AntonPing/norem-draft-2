@@ -77,14 +77,6 @@ impl InlineScan {
                 args.iter().for_each(|arg| self.visit_atom(arg));
                 self.occur_map.remove(bind);
             }
-            Expr::Brch {
-                prim: _,
-                args,
-                conts,
-            } => {
-                conts.iter().for_each(|cont| self.visit_expr(cont));
-                args.iter().for_each(|arg| self.visit_atom(arg));
-            }
             Expr::Call {
                 bind,
                 func,
@@ -213,13 +205,6 @@ impl InlinePerform {
                     cont,
                 }
             }
-            Expr::Brch { prim, args, conts } => {
-                let conts = conts
-                    .into_iter()
-                    .map(|cont| self.visit_expr(cont))
-                    .collect();
-                Expr::Brch { prim, args, conts }
-            }
             Expr::Call {
                 bind,
                 func,
@@ -313,13 +298,6 @@ fn continue_with(joins: &mut HashSet<Ident>, expr: Expr, hole: Ident, rest: Expr
                 args,
                 cont,
             }
-        }
-        Expr::Brch { prim, args, conts } => {
-            let conts = conts
-                .into_iter()
-                .map(|cont| continue_with(joins, cont, hole, rest.clone()))
-                .collect();
-            Expr::Brch { prim, args, conts }
         }
         Expr::Call {
             bind,

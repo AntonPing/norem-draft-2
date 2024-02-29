@@ -156,14 +156,6 @@ impl ClosConv {
                     cont,
                 }
             }
-            Expr::Brch { prim, args, conts } => {
-                let conts = conts
-                    .into_iter()
-                    .map(|cont| self.visit_expr(cont))
-                    .collect();
-                let args: Vec<Atom> = args.into_iter().map(|arg| self.visit_atom(arg)).collect();
-                Expr::Brch { prim, args, conts }
-            }
             Expr::Call {
                 bind,
                 func,

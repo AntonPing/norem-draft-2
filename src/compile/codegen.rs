@@ -181,53 +181,6 @@ impl Codegen {
                 self.reg_map.insert(*bind, ret);
                 self.visit_expr(cont);
             }
-            Expr::Brch { prim, args, conts } => match (prim, &args[..]) {
-                (anf::BrchOpr::Ifte, [arg]) => {
-                    let arg = self.visit_atom(arg);
-                    let label = Ident::fresh(&"label");
-                    assert_eq!(conts.len(), 2);
-                    let [trbr, flbr] = &conts[..] else {
-                        unreachable!()
-                    };
-                    self.code.push(Instr::JmpFl(arg, label));
-                    self.visit_expr(trbr);
-                    self.code.push(Instr::Label(label));
-                    self.visit_expr(flbr);
-                }
-                (anf::BrchOpr::Switch, [arg]) => {
-                    let reg = self.visit_atom(arg);
-                    let temp_reg = self.new_reg();
-                    let brchs: Vec<Ident> = (0..conts.len()).map(|_| Ident::fresh(&"sw")).collect();
-                    fn helper(
-                        slf: &mut Codegen,
-                        reg: Reg,
-                        temp_reg: Reg,
-                        brchs: &Vec<Ident>,
-                        low: usize,
-                        high: usize,
-                    ) {
-                        assert!(low < high);
-                        if low + 1 == high {
-                            slf.code.push(Instr::Jmp(brchs[low]));
-                        } else {
-                            let mid: usize = (low + high) / 2;
-                            let label = Ident::fresh(&"label");
-                            slf.code.push(Instr::LitI(temp_reg, mid as i64));
-                            slf.code.push(Instr::ICmpLs(temp_reg, reg, temp_reg));
-                            slf.code.push(Instr::JmpFl(temp_reg, label));
-                            helper(slf, reg, temp_reg, brchs, low, mid);
-                            slf.code.push(Instr::Label(label));
-                            helper(slf, reg, temp_reg, brchs, mid, high);
-                        }
-                    }
-                    helper(self, reg, temp_reg, &brchs, 0, conts.len());
-                    for (i, brch) in brchs.iter().enumerate() {
-                        self.code.push(Instr::Label(*brch));
-                        self.visit_expr(&conts[i]);
-                    }
-                }
-                _ => unreachable!(),
-            },
             Expr::Call {
                 bind,
                 func,

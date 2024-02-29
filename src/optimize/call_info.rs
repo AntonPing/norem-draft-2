@@ -110,14 +110,6 @@ impl CallInfoScan {
                 args.iter().for_each(|arg| self.visit_atom(arg));
                 self.info_map.remove(bind);
             }
-            Expr::Brch {
-                prim: _,
-                args,
-                conts,
-            } => {
-                conts.iter_mut().for_each(|cont| self.visit_expr(cont));
-                args.iter().for_each(|arg| self.visit_atom(arg));
-            }
             Expr::Call {
                 bind,
                 func,

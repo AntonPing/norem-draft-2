@@ -32,15 +32,6 @@ impl fmt::Display for PrimOpr {
     }
 }
 
-impl fmt::Display for BrchOpr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            BrchOpr::Ifte => "ifte".fmt(f),
-            BrchOpr::Switch => "switch".fmt(f),
-        }
-    }
-}
-
 impl fmt::Display for IfCond {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -91,15 +82,6 @@ impl fmt::Display for Expr {
             } => {
                 let args = args.iter().format(&", ");
                 write!(f, "let {bind} = {prim}({args});{NWLN}{cont}")
-            }
-            Expr::Brch { prim, args, conts } => {
-                let args = args.iter().format(&", ");
-                write!(f, "{prim}({args}) {{{INDT}")?;
-                for cont in conts {
-                    write!(f, "{NWLN}{{{cont}}}")?;
-                }
-                write!(f, "{DEDT}{NWLN}}}")?;
-                Ok(())
             }
             Expr::Call {
                 bind,

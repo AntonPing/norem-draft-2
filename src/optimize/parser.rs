@@ -94,14 +94,6 @@ fn prim_opr(input: &str) -> IResult<&str, PrimOpr> {
     ))(input)
 }
 
-fn brch_opr(input: &str) -> IResult<&str, BrchOpr> {
-    let (input, _) = skip_space(input)?;
-    alt((
-        value(BrchOpr::Ifte, tag("ifte")),
-        value(BrchOpr::Switch, tag("switch")),
-    ))(input)
-}
-
 fn if_cond(input: &str) -> IResult<&str, IfCond> {
     let (input, _) = skip_space(input)?;
     alt((
@@ -147,22 +139,6 @@ fn expr_prim(input: &str) -> IResult<&str, Expr> {
             cont: Box::new(cont),
         },
     ))
-}
-
-fn expr_brch(input: &str) -> IResult<&str, Expr> {
-    let (input, prim) = brch_opr(input)?;
-    let (input, _) = skip_space_tag("(", input)?;
-    let (input, args) = separated_list0(|input| skip_space_tag(",", input), atom)(input)?;
-    let (input, _) = skip_space_tag(")", input)?;
-    let (input, _) = skip_space_tag("{", input)?;
-    let (input, conts) = many0(|input| {
-        let (input, _) = skip_space_tag("{", input)?;
-        let (input, res) = expr(input)?;
-        let (input, _) = skip_space_tag("}", input)?;
-        Ok((input, res))
-    })(input)?;
-    let (input, _) = skip_space_tag("}", input)?;
-    Ok((input, Expr::Brch { prim, args, conts }))
 }
 
 fn expr_call(input: &str) -> IResult<&str, Expr> {
@@ -240,7 +216,6 @@ fn expr(input: &str) -> IResult<&str, Expr> {
     alt((
         expr_decls,
         expr_prim,
-        expr_brch,
         expr_call,
         expr_ifte,
         expr_switch,
