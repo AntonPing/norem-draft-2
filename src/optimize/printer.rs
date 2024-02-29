@@ -46,20 +46,11 @@ impl fmt::Display for IfCond {
 
 impl fmt::Display for Decl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Decl {
-            func,
-            pars,
-            body,
-            info,
-        } = self;
+        let Decl { func, pars, body } = self;
         let pars = pars.iter().format(&", ");
         write!(f, "fn {func}({pars})")?;
-        match info {
-            CallInfo::NoInfo => write!(f, " {{N}} "),
-            CallInfo::Static => write!(f, " {{S}} "),
-            CallInfo::JoinPoint => write!(f, " {{J}} "),
-        }?;
-        write!(f, "begin{INDT}{NWLN}{body}{DEDT}{NWLN}end")
+        write!(f, "begin{INDT}{NWLN}{body}{DEDT}{NWLN}end")?;
+        Ok(())
     }
 }
 

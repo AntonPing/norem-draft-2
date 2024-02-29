@@ -41,22 +41,12 @@ impl ClosConv {
     }
 
     fn visit_decl(&mut self, decl: Decl) -> Decl {
-        let Decl {
-            func,
-            pars,
-            body,
-            info,
-        } = decl;
+        let Decl { func, pars, body } = decl;
         let body = self.visit_expr(body);
         for par in pars.iter() {
             self.freevar.remove(par);
         }
-        Decl {
-            func,
-            pars,
-            body,
-            info,
-        }
+        Decl { func, pars, body }
     }
 
     fn visit_expr(&mut self, expr: Expr) -> Expr {
@@ -79,12 +69,7 @@ impl ClosConv {
                 let decls: Vec<Decl> = decls
                     .into_iter()
                     .map(|decl| {
-                        let Decl {
-                            func,
-                            pars,
-                            body,
-                            info,
-                        } = decl;
+                        let Decl { func, pars, body } = decl;
                         let c = Ident::fresh(&"c");
                         let pars: Vec<Ident> = [c].iter().chain(pars.iter()).copied().collect();
                         let body = frees
@@ -103,12 +88,7 @@ impl ClosConv {
                             cont: Box::new(acc),
                         });
 
-                        Decl {
-                            func,
-                            pars,
-                            body,
-                            info,
-                        }
+                        Decl { func, pars, body }
                     })
                     .collect();
 

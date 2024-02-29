@@ -117,19 +117,11 @@ impl IfCond {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CallInfo {
-    NoInfo,
-    Static,
-    JoinPoint,
-}
-
 #[derive(Clone, Debug)]
 pub struct Decl {
     pub func: Ident,
     pub pars: Vec<Ident>,
     pub body: Expr,
-    pub info: CallInfo,
 }
 
 #[derive(Clone, Debug)]

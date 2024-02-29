@@ -43,7 +43,6 @@ impl InlineScan {
             func: _,
             pars,
             body,
-            info: _,
         } = decl;
         self.visit_expr(body);
         pars.iter().for_each(|par| {
@@ -150,19 +149,9 @@ impl InlinePerform {
     }
 
     fn visit_decl(&mut self, decl: Decl) -> Decl {
-        let Decl {
-            func,
-            pars,
-            body,
-            info,
-        } = decl;
+        let Decl { func, pars, body } = decl;
         let body = self.visit_expr(body);
-        Decl {
-            func,
-            pars,
-            body,
-            info,
-        }
+        Decl { func, pars, body }
     }
 
     fn visit_expr(&mut self, expr: Expr) -> Expr {
@@ -252,37 +241,10 @@ impl InlinePerform {
     }
 }
 
-fn continue_with(joins: &mut HashSet<Ident>, expr: Expr, hole: Ident, rest: Expr) -> Expr {
+fn continue_with(expr: Expr, hole: Ident, rest: Expr) -> Expr {
     match expr {
         Expr::Decls { decls, cont } => {
-            for decl in decls.iter() {
-                if decl.info == CallInfo::JoinPoint {
-                    joins.insert(decl.func);
-                }
-            }
-            let decls = decls
-                .into_iter()
-                .map(|decl| {
-                    if decl.info == CallInfo::JoinPoint {
-                        let Decl {
-                            func,
-                            pars,
-                            body,
-                            info,
-                        } = decl;
-                        let body = continue_with(joins, body, hole, rest.clone());
-                        Decl {
-                            func,
-                            pars,
-                            body,
-                            info,
-                        }
-                    } else {
-                        decl
-                    }
-                })
-                .collect();
-            let cont = Box::new(continue_with(joins, *cont, hole, rest));
+            let cont = Box::new(continue_with(*cont, hole, rest));
             Expr::Decls { decls, cont }
         }
         Expr::Prim {
@@ -291,7 +253,7 @@ fn continue_with(joins: &mut HashSet<Ident>, expr: Expr, hole: Ident, rest: Expr
             args,
             cont,
         } => {
-            let cont = Box::new(continue_with(joins, *cont, hole, rest));
+            let cont = Box::new(continue_with(*cont, hole, rest));
             Expr::Prim {
                 bind,
                 prim,
@@ -305,20 +267,12 @@ fn continue_with(joins: &mut HashSet<Ident>, expr: Expr, hole: Ident, rest: Expr
             args,
             cont,
         } => {
-            if let Atom::Var(name) = func {
-                if joins.contains(&name) {
-                    *cont
-                } else {
-                    let cont = Box::new(continue_with(joins, *cont, hole, rest));
-                    Expr::Call {
-                        bind,
-                        func,
-                        args,
-                        cont,
-                    }
-                }
-            } else {
-                unreachable!()
+            let cont = Box::new(continue_with(*cont, hole, rest));
+            Expr::Call {
+                bind,
+                func,
+                args,
+                cont,
             }
         }
         Expr::Ifte {
@@ -327,8 +281,8 @@ fn continue_with(joins: &mut HashSet<Ident>, expr: Expr, hole: Ident, rest: Expr
             trbr,
             flbr,
         } => {
-            let trbr = Box::new(continue_with(joins, *trbr, hole, rest.clone()));
-            let flbr = Box::new(continue_with(joins, *flbr, hole, rest));
+            let trbr = Box::new(continue_with(*trbr, hole, rest.clone()));
+            let flbr = Box::new(continue_with(*flbr, hole, rest));
             Expr::Ifte {
                 cond,
                 args,
@@ -339,9 +293,9 @@ fn continue_with(joins: &mut HashSet<Ident>, expr: Expr, hole: Ident, rest: Expr
         Expr::Switch { arg, brchs, dflt } => {
             let brchs = brchs
                 .into_iter()
-                .map(|(i, brch)| (i, continue_with(joins, brch, hole, rest.clone())))
+                .map(|(i, brch)| (i, continue_with(brch, hole, rest.clone())))
                 .collect();
-            let dflt = dflt.map(|dflt| Box::new(continue_with(joins, *dflt, hole, rest)));
+            let dflt = dflt.map(|dflt| Box::new(continue_with(*dflt, hole, rest)));
             Expr::Switch { arg, brchs, dflt }
         }
         Expr::Retn { res } => Expr::Prim {
@@ -358,12 +312,11 @@ fn inline_call(decl: Decl, bind: Ident, func: Ident, args: Vec<Atom>, cont: Expr
         func: func2,
         pars,
         body,
-        info: _,
     } = decl;
     assert_eq!(func, func2);
     assert_eq!(args.len(), pars.len());
     pars.into_iter().zip(args.into_iter()).fold(
-        continue_with(&mut HashSet::new(), body, bind, cont),
+        continue_with(body, bind, cont),
         |tail, (par, arg)| Expr::Prim {
             bind: par,
             prim: PrimOpr::Move,

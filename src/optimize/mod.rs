@@ -1,5 +1,4 @@
 pub mod anf;
-pub mod call_info;
 pub mod closure;
 pub mod inline;
 pub mod normalize;
