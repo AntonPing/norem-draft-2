@@ -105,12 +105,20 @@ impl InlineScan {
                 self.occur_map.remove(bind);
             }
             Expr::Ifte {
-                cond,
+                cond: _,
                 args,
                 trbr,
                 flbr,
-            } => todo!(),
-            Expr::Switch { arg, brchs, dflt } => todo!(),
+            } => {
+                self.visit_expr(trbr);
+                self.visit_expr(flbr);
+                args.iter().for_each(|arg| self.visit_atom(arg));
+            }
+            Expr::Switch { arg, brchs, dflt } => {
+                brchs.iter().for_each(|(_, brch)| self.visit_expr(brch));
+                dflt.as_ref().map(|dflt| self.visit_expr(dflt));
+                self.visit_atom(arg);
+            }
             Expr::Retn { res } => {
                 self.visit_atom(res);
             }
@@ -236,8 +244,24 @@ impl InlinePerform {
                 args,
                 trbr,
                 flbr,
-            } => todo!(),
-            Expr::Switch { arg, brchs, dflt } => todo!(),
+            } => {
+                let trbr = Box::new(self.visit_expr(*trbr));
+                let flbr = Box::new(self.visit_expr(*flbr));
+                Expr::Ifte {
+                    cond,
+                    args,
+                    trbr,
+                    flbr,
+                }
+            }
+            Expr::Switch { arg, brchs, dflt } => {
+                let dflt = dflt.map(|dflt| Box::new(self.visit_expr(*dflt)));
+                let brchs = brchs
+                    .into_iter()
+                    .map(|(i, brch)| (i, self.visit_expr(brch)))
+                    .collect();
+                Expr::Switch { arg, brchs, dflt }
+            }
             Expr::Retn { res } => Expr::Retn { res },
         }
     }
@@ -324,8 +348,24 @@ fn continue_with(joins: &mut HashSet<Ident>, expr: Expr, hole: Ident, rest: Expr
             args,
             trbr,
             flbr,
-        } => todo!(),
-        Expr::Switch { arg, brchs, dflt } => todo!(),
+        } => {
+            let trbr = Box::new(continue_with(joins, *trbr, hole, rest.clone()));
+            let flbr = Box::new(continue_with(joins, *flbr, hole, rest));
+            Expr::Ifte {
+                cond,
+                args,
+                trbr,
+                flbr,
+            }
+        }
+        Expr::Switch { arg, brchs, dflt } => {
+            let brchs = brchs
+                .into_iter()
+                .map(|(i, brch)| (i, continue_with(joins, brch, hole, rest.clone())))
+                .collect();
+            let dflt = dflt.map(|dflt| Box::new(continue_with(joins, *dflt, hole, rest)));
+            Expr::Switch { arg, brchs, dflt }
+        }
         Expr::Retn { res } => Expr::Prim {
             bind: hole,
             prim: PrimOpr::Move,
