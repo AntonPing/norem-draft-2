@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::iter;
 use std::ops::Deref;
 
-use super::anf::{self, Atom, PrimOpr};
+use super::anf::{self, Atom, ContDecl, PrimOpr};
 use super::pattern::PatnMatrix;
 
 use crate::optimize::pattern;
@@ -13,17 +13,6 @@ use crate::utils::intern::InternStr;
 pub struct Normalizer {
     cons_map: HashMap<Ident, Ident>,
     data_map: HashMap<Ident, Vec<Varient>>,
-}
-
-fn subst(expr: anf::Expr, hole: Ident, atom: Atom) -> anf::Expr {
-    // subst(expr,hole,atom) ~=~ let hole = move(atom); expr
-    // it will be substituted in constant-fold pass anyway
-    anf::Expr::Prim {
-        bind: hole,
-        prim: PrimOpr::Move,
-        args: vec![atom],
-        cont: Box::new(expr),
-    }
 }
 
 impl Normalizer {
@@ -57,10 +46,42 @@ impl Normalizer {
         }
         let decls = decls
             .iter()
-            .flat_map(|decl| self.normalize_decl(decl))
+            .flat_map(|decl| self.normalize_func_decl(decl))
             .collect();
 
         anf::Module { name: *name, decls }
+    }
+
+    pub fn normalize_func_decl(&mut self, decl: &ast::Decl) -> Option<anf::FuncDecl> {
+        match decl {
+            ast::Decl::Func {
+                ident,
+                polys: _,
+                pars,
+                res: _,
+                span1: _,
+                body,
+                span2: _,
+            } => {
+                let k = Ident::fresh(&"k");
+                let r = Ident::fresh(&"r");
+
+                Some(anf::FuncDecl {
+                    func: *ident,
+                    cont: k,
+                    pars: pars.iter().map(|(par, _typ)| *par).collect(),
+                    body: self.normalize_expr_with_cont(
+                        body,
+                        r,
+                        anf::Expr::Jump {
+                            cont: k,
+                            args: vec![Atom::Var(r)],
+                        },
+                    ),
+                })
+            }
+            ast::Decl::Data { .. } => None,
+        }
     }
 
     pub fn normalize_expr(expr: &ast::Expr) -> anf::Expr {
@@ -71,7 +92,7 @@ impl Normalizer {
         let bind = Ident::fresh(&"r");
         pass.normalize_expr_with_cont(
             expr,
-            &bind,
+            bind,
             anf::Expr::Retn {
                 res: Atom::Var(bind),
             },
@@ -83,28 +104,52 @@ impl Normalizer {
     fn normalize_expr_with_cont(
         &mut self,
         expr: &ast::Expr,
-        bind: &Ident,
+        bind: Ident,
         rest: anf::Expr,
     ) -> anf::Expr {
         match expr {
-            ast::Expr::Lit { lit, span: _ } => subst(rest, *bind, (*lit).into()),
-            ast::Expr::Var { ident, span: _ } => subst(rest, *bind, Atom::Var(*ident)),
+            ast::Expr::Lit { lit, span: _ } => {
+                //  normalize(v, bind, rest) =
+                //  let bind = @move(v);
+                //  rest
+                anf::Expr::Prim {
+                    bind,
+                    prim: PrimOpr::Move,
+                    args: vec![(*lit).into()],
+                    rest: Box::new(rest),
+                }
+            }
+            ast::Expr::Var { ident, span: _ } => {
+                //  normalize(x, bind, rest) =
+                //  let bind = @move(x);
+                //  rest
+                anf::Expr::Prim {
+                    bind,
+                    prim: PrimOpr::Move,
+                    args: vec![Atom::Var(*ident)],
+                    rest: Box::new(rest),
+                }
+            }
             ast::Expr::Prim {
                 prim,
                 args,
                 span: _,
             } => {
-                // normalize(@iadd(e1, e2), hole, rest) =
-                // normalize(e2, x2, normalize(e1, x1, let hole = iadd(x1,x2) in rest))
-                let arg_binds: Vec<Ident> = args.iter().map(|_| Ident::fresh(&"x")).collect();
-                arg_binds.iter().zip(args.iter()).rev().fold(
+                //  normalize(@prim(e1, ..., en), bind, rest) =
+                //  normalize(en, xn,
+                //      ...
+                //          normalize(e1, x1,
+                //              let bind = @prim(x1, ..., xn);
+                //              rest)...)
+                let xs: Vec<Ident> = args.iter().map(|_| Ident::fresh(&"x")).collect();
+                xs.iter().zip(args.iter()).rev().fold(
                     anf::Expr::Prim {
-                        bind: *bind,
+                        bind,
                         prim: (*prim).into(),
-                        args: arg_binds.iter().map(|x| anf::Atom::Var(*x)).collect(),
-                        cont: Box::new(rest),
+                        args: xs.iter().map(|x| anf::Atom::Var(*x)).collect(),
+                        rest: Box::new(rest),
                     },
-                    |rest, (bind, arg)| self.normalize_expr_with_cont(arg, bind, rest),
+                    |rest, (bind, arg)| self.normalize_expr_with_cont(arg, *bind, rest),
                 )
             }
             ast::Expr::Func {
@@ -112,16 +157,39 @@ impl Normalizer {
                 body,
                 span: _,
             } => {
-                // normalize(fun(x,y) => e, hole, ctx) =
-                // let f(x,y) = normalize_top(e) in ctx[hole:=f]
-                let func_bind = Ident::fresh(&"f");
+                //  normalize(fun(x1, ..., xn) => body, bind, rest) =
+                //  decls
+                //      func f(k, x1, ..., xn):
+                //          normalize(body, r, jump k(r))
+                //  in
+                //      let bind = @move(f);
+                //      rest
+                //  end
+                let f = Ident::fresh(&"f");
+                let k = Ident::fresh(&"k");
+                let r = Ident::fresh(&"r");
+
                 anf::Expr::Decls {
-                    decls: vec![anf::Decl {
-                        func: func_bind,
+                    funcs: vec![anf::FuncDecl {
+                        func: f,
+                        cont: k,
                         pars: pars.clone(),
-                        body: Normalizer::normalize_expr(body),
+                        body: self.normalize_expr_with_cont(
+                            body,
+                            r,
+                            anf::Expr::Jump {
+                                cont: k,
+                                args: vec![Atom::Var(r)],
+                            },
+                        ),
                     }],
-                    cont: Box::new(subst(rest, *bind, Atom::Var(func_bind))),
+                    conts: Vec::new(),
+                    body: Box::new(anf::Expr::Prim {
+                        bind,
+                        prim: PrimOpr::Move,
+                        args: vec![Atom::Var(f)],
+                        rest: Box::new(rest),
+                    }),
                 }
             }
             ast::Expr::Cons {
@@ -129,14 +197,13 @@ impl Normalizer {
                 flds,
                 span: _,
             } => {
-                // normalize(ci(e1,..,en), hole, ctx) =
-                // normalize(en,xn,
-                //   ...
-                //     normalize(e1,x1,
-                //       normalize(e0,f,
-                //         let r = @record(x0, ..., xn);
-                //         let hole = move(r);
-                //         ctx))...)
+                //  normalize(ci(e1, ..., en), bind, rest) =
+                //  normalize(en, xn,
+                //      ...
+                //          normalize(e1,x1,
+                //              let r = @record(i, x1, ..., xn);
+                //              let hole = move(r);
+                //              rest)...)
 
                 let typ = self.cons_map[cons];
                 let (tag, label_vec): (usize, Vec<InternStr>) = self.data_map[&typ]
@@ -148,56 +215,77 @@ impl Normalizer {
 
                 let xs: Vec<Ident> = label_vec.iter().map(|_| Ident::fresh(&"x")).collect();
                 let r = Ident::fresh(&"r");
-                let cont = anf::Expr::Prim {
-                    bind: r,
-                    prim: anf::PrimOpr::Record,
-                    args: [Atom::Int(tag as i64)]
-                        .into_iter()
-                        .chain(xs.iter().map(|x| Atom::Var(*x)))
-                        .collect(),
-                    cont: Box::new(anf::Expr::Prim {
-                        bind: *bind,
-                        prim: anf::PrimOpr::Move,
-                        args: vec![Atom::Var(r)],
-                        cont: Box::new(rest),
-                    }),
-                };
 
                 label_vec
-                    .iter()
+                    .into_iter()
                     .zip(xs.iter())
                     .map(|(label, bind)| {
-                        let fld = flds.iter().find(|fld| fld.label == *label).unwrap();
+                        let fld = flds.iter().find(|fld| fld.label == label).unwrap();
                         (bind, &fld.data)
                     })
-                    .fold(cont, |cont, (bind, expr)| {
-                        self.normalize_expr_with_cont(&expr, bind, cont)
-                    })
+                    .fold(
+                        anf::Expr::Prim {
+                            bind: r,
+                            prim: anf::PrimOpr::Record,
+                            args: [Atom::Int(tag as i64)]
+                                .into_iter()
+                                .chain(xs.iter().map(|x| Atom::Var(*x)))
+                                .collect(),
+                            rest: Box::new(anf::Expr::Prim {
+                                bind,
+                                prim: anf::PrimOpr::Move,
+                                args: vec![Atom::Var(r)],
+                                rest: Box::new(rest),
+                            }),
+                        },
+                        |rest, (bind, expr)| self.normalize_expr_with_cont(&expr, *bind, rest),
+                    )
             }
             ast::Expr::App {
                 func,
                 args,
                 span: _,
             } => {
-                // normalize(e0(e1,..,en), hole, ctx) =
-                // normalize(en,xn,
-                //   ...
-                //     normalize(e1,x1,
-                //       normalize(e0,f,
-                //         let hole = f(x1,...,xn) in ctx))...)
-                let func_bind = Ident::fresh(&"f");
-                let arg_binds: Vec<Ident> = args.iter().map(|_| Ident::fresh(&"x")).collect();
-                iter::once((&func_bind, func.deref()))
-                    .chain(arg_binds.iter().zip(args.iter()))
-                    .rev()
+                //  normalize(e0(e1, ..., en), bind, rest) =
+                //  normalize(en, xn,
+                //      ...
+                //          normalize(e1, x1,
+                //              normalize(e0, f,
+                //                  decls
+                //                      cont k(r):
+                //                          let bind = @move(r);
+                //                          rest
+                //                  in
+                //                      call f(k, x1, ..., xn);
+                //                  end
+
+                let f = Ident::fresh(&"f");
+                let k = Ident::fresh(&"k");
+                let r = Ident::fresh(&"r");
+                let xs: Vec<Ident> = args.iter().map(|_| Ident::fresh(&"x")).collect();
+
+                iter::once((&f, func.as_ref()))
+                    .chain(xs.iter().zip(args.into_iter()))
                     .fold(
-                        anf::Expr::Call {
-                            bind: *bind,
-                            func: Atom::Var(func_bind),
-                            args: arg_binds.iter().map(|x| anf::Atom::Var(*x)).collect(),
-                            cont: Box::new(rest),
+                        anf::Expr::Decls {
+                            funcs: Vec::new(),
+                            conts: vec![ContDecl {
+                                cont: k,
+                                pars: vec![r],
+                                body: anf::Expr::Prim {
+                                    bind,
+                                    prim: PrimOpr::Move,
+                                    args: vec![Atom::Var(r)],
+                                    rest: Box::new(rest),
+                                },
+                            }],
+                            body: Box::new(anf::Expr::Call {
+                                func: f,
+                                cont: k,
+                                args: xs.iter().map(|x| Atom::Var(*x)).collect(),
+                            }),
                         },
-                        |rest, (bind, arg)| self.normalize_expr_with_cont(arg, bind, rest),
+                        |rest, (bind, arg)| self.normalize_expr_with_cont(arg, *bind, rest),
                     )
             }
             ast::Expr::Ifte {
@@ -206,52 +294,57 @@ impl Normalizer {
                 flbr,
                 span: _,
             } => {
-                // normalize(if e1 then e2 else e3, hole, ctx) =
-                // letjoin j(hole) = ctx in
+                //  normalize(if e1 then e2 else e3, bind, rest) =
+                //  decls
+                //      cont k(bind):
+                //          rest
+                //  in
                 //      normalize(e1, x1,
-                //          ifte x1 {
-                //              normalize(e2, x2, j(x2))
-                //              normalize(e3, x3, j(x3))
-                //          } )
-                let j = Ident::fresh(&"j");
+                //          if x1
+                //          then
+                //              normalize(e2, x2, jump k(x2))
+                //          else
+                //              normalize(e3, x3, jump k(x3)))
+                //  end
+
+                let k = Ident::fresh(&"k");
                 let x1 = Ident::fresh(&"x");
                 let x2 = Ident::fresh(&"x");
                 let x3 = Ident::fresh(&"x");
-                let r2 = Ident::fresh(&"r");
-                let r3 = Ident::fresh(&"r");
+
                 let trbr = self.normalize_expr_with_cont(
                     trbr,
-                    &x2,
-                    anf::Expr::Call {
-                        bind: r2,
-                        func: Atom::Var(j),
+                    x2,
+                    anf::Expr::Jump {
+                        cont: k,
                         args: vec![Atom::Var(x2)],
-                        cont: Box::new(anf::Expr::Retn { res: Atom::Var(r2) }),
                     },
                 );
                 let flbr = self.normalize_expr_with_cont(
                     flbr,
-                    &x3,
-                    anf::Expr::Call {
-                        bind: r3,
-                        func: Atom::Var(j),
+                    x3,
+                    anf::Expr::Jump {
+                        cont: k,
                         args: vec![Atom::Var(x3)],
-                        cont: Box::new(anf::Expr::Retn { res: Atom::Var(r3) }),
                     },
                 );
-                let ifte = anf::Expr::Ifte {
-                    cond: anf::IfCond::BTrue,
-                    args: vec![Atom::Var(x1)],
-                    trbr: Box::new(trbr),
-                    flbr: Box::new(flbr),
-                };
                 anf::Expr::Decls {
-                    decls: vec![anf::Decl {
-                        func: j,
-                        pars: vec![*bind],
+                    funcs: Vec::new(),
+                    conts: vec![anf::ContDecl {
+                        cont: k,
+                        pars: vec![bind],
                         body: rest,
                     }],
-                    cont: Box::new(self.normalize_expr_with_cont(cond, &x1, ifte)),
+                    body: Box::new(self.normalize_expr_with_cont(
+                        cond,
+                        x1,
+                        anf::Expr::Ifte {
+                            cond: anf::IfCond::BTrue,
+                            args: vec![Atom::Var(x1)],
+                            trbr: Box::new(trbr),
+                            flbr: Box::new(flbr),
+                        },
+                    )),
                 }
             }
             ast::Expr::Case {
@@ -262,57 +355,51 @@ impl Normalizer {
                 /*
                     normalize(
                         match top of
-                        | patn_0 => e_0
+                        | patn_1 => e_1
                         ......
                         | patn_n => e_n
-                    hole,
-                    rest
-                    ) =
+                        bind, rest) =
+
                     normalize(top, o
                         decls
-                            fn a_0(..) begin normalize(e_0, r, j(r) end
-                            ......
-                            fn a_n(..) begin normalize(e_n, r, j(r) end
-                            fn j(hole) begin rest end
+                            cont a_1(..):
+                                normalize(e_1, r1, jump k(r0))
+                            ...
+                            cont a_n(..):
+                                normalize(e_n, rn, jump k(r1))
+                            cont k(bind):
+                                rest
                         in
-                            inline(
-                                compile_match_with(
-                                    (o),
-                                    (patn_1)
-                                    ......
-                                    (patn_n),
-                                    (a_1, ..., a_n),
-                                ),
-                            )
+                            compile_match_with(
+                                (o),
+                                (patn_1)
+                                ......
+                                (patn_n),
+                                (a_1, ..., a_n),
+                            ),
                         end
                     )
                 */
-
-                let j = Ident::fresh(&"j");
-                let r = Ident::fresh(&"r");
-
+                let k = Ident::fresh(&"k");
                 let obj = Ident::fresh(&"o");
                 let objs = vec![obj];
-
-                let mut decls: Vec<anf::Decl> = Vec::new();
+                let mut decls: Vec<anf::ContDecl> = Vec::new();
                 let (matrix, acts): (Vec<Vec<Pattern>>, Vec<Ident>) = rules
                     .iter()
                     .map(|rule| {
                         let act = Ident::fresh(&"a");
-                        let binds = pattern::get_bind_vars(&rule.patn);
+                        let r = Ident::fresh(&"r");
                         let body = self.normalize_expr_with_cont(
                             &rule.body,
-                            &r,
-                            anf::Expr::Call {
-                                bind: r,
-                                func: Atom::Var(j),
+                            r,
+                            anf::Expr::Jump {
+                                cont: k,
                                 args: vec![Atom::Var(r)],
-                                cont: Box::new(anf::Expr::Retn { res: Atom::Var(r) }),
                             },
                         );
-                        let decl = anf::Decl {
-                            func: act,
-                            pars: binds,
+                        let decl = anf::ContDecl {
+                            cont: act,
+                            pars: pattern::get_bind_vars(&rule.patn),
                             body,
                         };
                         decls.push(decl);
@@ -320,24 +407,25 @@ impl Normalizer {
                     })
                     .unzip();
 
-                let decl = anf::Decl {
-                    func: j,
-                    pars: vec![*bind],
+                let decl = anf::ContDecl {
+                    cont: k,
+                    pars: vec![bind],
                     body: rest,
                 };
                 decls.push(decl);
 
                 let mat = PatnMatrix { objs, matrix, acts };
-                let cont = self.normalize_match(&mat, &decls);
+                let body = self.normalize_match(&mat, &decls);
                 let rest = anf::Expr::Decls {
-                    decls,
-                    cont: Box::new(cont),
+                    funcs: Vec::new(),
+                    conts: decls,
+                    body: Box::new(body),
                 };
-                self.normalize_expr_with_cont(expr, &obj, rest)
+                self.normalize_expr_with_cont(expr, obj, rest)
             }
             ast::Expr::Stmt { stmt, cont, .. } => {
-                // normalize(let x = e1; e2, hole, ctx) =
-                // normalize(e1, x, normalize(e2, hole, ctx)
+                //  normalize(let x = e1; e2, bind, rest) =
+                //  normalize(e1, x, normalize(e2, bind, rest))
                 let cont = self.normalize_expr_with_cont(cont, bind, rest);
                 match stmt.deref() {
                     ast::Stmt::Let {
@@ -345,70 +433,38 @@ impl Normalizer {
                         typ: _,
                         expr,
                         span: _,
-                    } => self.normalize_expr_with_cont(expr, ident, cont),
+                    } => self.normalize_expr_with_cont(expr, *ident, cont),
                     ast::Stmt::Do { expr, span: _ } => {
                         let ident = Ident::fresh(&"_");
-                        self.normalize_expr_with_cont(expr, &ident, cont)
+                        self.normalize_expr_with_cont(expr, ident, cont)
                     }
                 }
             }
         }
     }
-    pub fn normalize_decl(&mut self, decl: &ast::Decl) -> Option<anf::Decl> {
-        match decl {
-            ast::Decl::Func {
-                ident,
-                polys: _,
-                pars,
-                res: _,
-                span1: _,
-                body,
-                span2: _,
-            } => {
-                let (pars, _): (_, Vec<ast::Type>) = pars.iter().cloned().unzip();
-                let bind = Ident::fresh(&"r");
-                let body = self.normalize_expr_with_cont(
-                    body,
-                    &bind,
-                    anf::Expr::Retn {
-                        res: Atom::Var(bind),
-                    },
-                );
-                Some(anf::Decl {
-                    func: *ident,
-                    pars,
-                    body,
-                })
-            }
-            ast::Decl::Data { .. } => None,
-        }
-    }
 
-    fn normalize_match(&mut self, mat: &PatnMatrix, decls: &Vec<anf::Decl>) -> anf::Expr {
+    fn normalize_match(&mut self, mat: &PatnMatrix, decls: &Vec<anf::ContDecl>) -> anf::Expr {
         if mat.is_empty() {
             panic!("pattern match not exhaustive!")
         } else if mat.first_row_aways_match() {
             let (bindings, act) = mat.success();
-            let r = Ident::fresh(&"r");
             bindings.into_iter().fold(
-                anf::Expr::Call {
-                    bind: r,
-                    func: Atom::Var(act),
+                anf::Expr::Jump {
+                    cont: act,
                     args: decls
                         .iter()
-                        .find(|decl| decl.func == act)
+                        .find(|decl| decl.cont == act)
                         .unwrap()
                         .pars
                         .iter()
                         .map(|par| Atom::Var(*par))
                         .collect(),
-                    cont: Box::new(anf::Expr::Retn { res: Atom::Var(r) }),
                 },
-                |cont, (var, obj)| anf::Expr::Prim {
+                |rest, (var, obj)| anf::Expr::Prim {
                     bind: var,
                     prim: PrimOpr::Move,
                     args: vec![Atom::Var(obj)],
-                    cont: Box::new(cont),
+                    rest: Box::new(rest),
                 },
             )
         } else {
@@ -439,7 +495,7 @@ impl Normalizer {
                                 bind: *obj,
                                 prim: PrimOpr::Select,
                                 args: vec![Atom::Var(mat.objs[j]), Atom::Int((i + 1) as i64)],
-                                cont: Box::new(cont),
+                                rest: Box::new(cont),
                             },
                         );
 
@@ -447,7 +503,7 @@ impl Normalizer {
                             bind: *hit,
                             prim: PrimOpr::Move,
                             args: vec![Atom::Var(mat.objs[j])],
-                            cont: Box::new(cont),
+                            rest: Box::new(cont),
                         });
                         brchs.push((i, brch));
                     }
@@ -457,7 +513,7 @@ impl Normalizer {
                         bind: t,
                         prim: PrimOpr::Select,
                         args: vec![Atom::Var(mat.objs[j]), Atom::Int(0)],
-                        cont: Box::new(anf::Expr::Switch {
+                        rest: Box::new(anf::Expr::Switch {
                             arg: Atom::Var(t),
                             brchs,
                             dflt: None,
@@ -473,7 +529,7 @@ impl Normalizer {
                                     bind: *hit,
                                     prim: PrimOpr::Move,
                                     args: vec![Atom::Var(mat.objs[j])],
-                                    cont: Box::new(cont),
+                                    rest: Box::new(cont),
                                 }
                             });
 
