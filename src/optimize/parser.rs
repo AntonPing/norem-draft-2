@@ -106,18 +106,14 @@ fn if_cond(input: &str) -> IResult<&str, IfCond> {
 }
 
 fn expr_decls(input: &str) -> IResult<&str, Expr> {
-    let (input, _) = skip_space_tag("decl", input)?;
-    let (input, decls) = many0(decl)(input)?;
+    let (input, _) = skip_space_tag("decls", input)?;
+    let (input, funcs) = many0(func_decl)(input)?;
+    let (input, conts) = many0(cont_decl)(input)?;
     let (input, _) = skip_space_tag("in", input)?;
-    let (input, cont) = expr(input)?;
+    let (input, body) = expr(input)?;
     let (input, _) = skip_space_tag("end", input)?;
-    Ok((
-        input,
-        Expr::Decls {
-            decls,
-            cont: Box::new(cont),
-        },
-    ))
+    let body = Box::new(body);
+    Ok((input, Expr::Decls { funcs, conts, body }))
 }
 
 fn expr_prim(input: &str) -> IResult<&str, Expr> {
@@ -136,30 +132,39 @@ fn expr_prim(input: &str) -> IResult<&str, Expr> {
             bind,
             prim,
             args,
-            cont: Box::new(cont),
+            rest: Box::new(cont),
         },
     ))
 }
 
 fn expr_call(input: &str) -> IResult<&str, Expr> {
-    let (input, _) = skip_space_tag("let", input)?;
-    let (input, bind) = ident(input)?;
-    let (input, _) = skip_space_tag("=", input)?;
+    let (input, _) = skip_space_tag("call", input)?;
     let (input, func) = ident(input)?;
     let (input, _) = skip_space_tag("(", input)?;
     let (input, args) = separated_list0(|input| skip_space_tag(",", input), atom)(input)?;
     let (input, _) = skip_space_tag(")", input)?;
     let (input, _) = skip_space_tag(";", input)?;
-    let (input, cont) = expr(input)?;
-    Ok((
-        input,
-        Expr::Call {
-            bind,
-            func: Atom::Var(func),
-            args,
-            cont: Box::new(cont),
-        },
-    ))
+    if !args.is_empty() {
+        let cont = args[0];
+        let args = args[1..].iter().copied().collect();
+        if let Atom::Var(cont) = cont {
+            Ok((input, Expr::Call { func, cont, args }))
+        } else {
+            nom::combinator::fail("function call with a non-cont first argument!")
+        }
+    } else {
+        nom::combinator::fail("function call without cont argument!")
+    }
+}
+
+fn expr_jump(input: &str) -> IResult<&str, Expr> {
+    let (input, _) = skip_space_tag("jump", input)?;
+    let (input, cont) = ident(input)?;
+    let (input, _) = skip_space_tag("(", input)?;
+    let (input, args) = separated_list0(|input| skip_space_tag(",", input), atom)(input)?;
+    let (input, _) = skip_space_tag(")", input)?;
+    let (input, _) = skip_space_tag(";", input)?;
+    Ok((input, Expr::Jump { cont, args }))
 }
 
 fn expr_ifte(input: &str) -> IResult<&str, Expr> {
@@ -217,29 +222,54 @@ fn expr(input: &str) -> IResult<&str, Expr> {
         expr_decls,
         expr_prim,
         expr_call,
+        expr_jump,
         expr_ifte,
         expr_switch,
         expr_retn,
     ))(input)
 }
 
-fn decl(input: &str) -> IResult<&str, Decl> {
-    let (input, _) = skip_space_tag("fn", input)?;
+fn func_decl(input: &str) -> IResult<&str, FuncDecl> {
+    let (input, _) = skip_space_tag("func", input)?;
     let (input, func) = ident(input)?;
     let (input, _) = skip_space_tag("(", input)?;
     let (input, pars) = separated_list0(|input| skip_space_tag(",", input), ident)(input)?;
     let (input, _) = skip_space_tag(")", input)?;
-    let (input, _) = skip_space_tag("begin", input)?;
+    let (input, _) = skip_space_tag(":", input)?;
     let (input, body) = expr(input)?;
-    let (input, _) = skip_space_tag("end", input)?;
-    Ok((input, Decl { func, pars, body }))
+    if !pars.is_empty() {
+        let cont = pars[0];
+        let pars = pars[1..].iter().copied().collect();
+        Ok((
+            input,
+            FuncDecl {
+                func,
+                cont,
+                pars,
+                body,
+            },
+        ))
+    } else {
+        nom::combinator::fail("function definition without cont parameter!")
+    }
+}
+
+fn cont_decl(input: &str) -> IResult<&str, ContDecl> {
+    let (input, _) = skip_space_tag("cont", input)?;
+    let (input, cont) = ident(input)?;
+    let (input, _) = skip_space_tag("(", input)?;
+    let (input, pars) = separated_list0(|input| skip_space_tag(",", input), ident)(input)?;
+    let (input, _) = skip_space_tag(")", input)?;
+    let (input, _) = skip_space_tag(":", input)?;
+    let (input, body) = expr(input)?;
+    Ok((input, ContDecl { cont, pars, body }))
 }
 
 fn module(input: &str) -> IResult<&str, Module> {
     let (input, _) = skip_space_tag("module", input)?;
     let (input, name) = ident(input)?;
     let (input, _) = skip_space_tag("where", input)?;
-    let (input, decls) = many0(decl)(input)?;
+    let (input, decls) = many0(func_decl)(input)?;
     Ok((input, Module { name, decls }))
 }
 
@@ -248,7 +278,7 @@ pub fn parse_module(input: &str) -> Option<Module> {
         Ok((input, mut modl)) => {
             let (input, _) = skip_space(input).unwrap();
             if input == "" {
-                super::rename::Renamer::run(&mut modl);
+                // super::rename::Renamer::run(&mut modl);
                 Some(modl)
             } else {
                 None
@@ -263,39 +293,19 @@ pub fn parse_module(input: &str) -> Option<Module> {
 fn parser_test() {
     let s = r#"
 module Test where
-fn top1(x, y) begin
+func top1(x, y):
     return x;
-end
-fn top2(x) begin
-    decl
-        fn f(x, y, z) begin
-            return z; 
-        end
-        fn g(x, y, z) begin
-            ifte(x) {
-                { return z; }
-                { return z; }
-            }
-        end
-        fn h(x) begin
-            if btrue(x)
-            then
-                return 1;
-            else
-                switch x of
-                case 2:
-                    return 1;
-                case 4:
-                    return 2;
-                end
-        end
+func top2(x):
+    decls
+        func f(k, x, y, z):
+            jump k(x);
+        cont k(a):
+            return a;
     in
         let x = @iadd(1, 2);
-        let y = f(x, x, x);
-        return 3;
+        call f(k, 1, 2, 3);
     end
-end
 "#;
     let res = parse_module(s).unwrap();
-    println!("{}", res);
+    // println!("{}", res);
 }
