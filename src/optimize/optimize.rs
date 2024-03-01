@@ -31,7 +31,7 @@ impl Optimizer {
         res
     }
 
-    fn mark_used(&mut self, arg: &Atom) {
+    fn mark_val_used(&mut self, arg: &Atom) {
         if let Atom::Var(var) = arg {
             self.used_set.insert(*var);
         }
@@ -42,18 +42,29 @@ impl Optimizer {
 
         let func_names: Vec<Ident> = decls.iter().map(|decl| decl.func).collect();
 
-        let decls: Vec<anf::Decl> = decls
+        let decls: Vec<anf::FuncDecl> = decls
             .into_iter()
             .map(|decl| {
-                let anf::Decl { func, pars, body } = decl;
+                let anf::FuncDecl {
+                    func,
+                    cont,
+                    pars,
+                    body,
+                } = decl;
                 let body = self.visit_expr(body);
+                self.used_set.remove(&cont);
                 for par in pars.iter() {
                     self.used_set.remove(par);
                 }
                 for name in func_names.iter() {
                     self.used_set.remove(name);
                 }
-                anf::Decl { func, pars, body }
+                anf::FuncDecl {
+                    func,
+                    cont,
+                    pars,
+                    body,
+                }
             })
             .collect();
 
@@ -62,34 +73,68 @@ impl Optimizer {
 
     fn visit_expr(&mut self, expr: anf::Expr) -> anf::Expr {
         match expr {
-            anf::Expr::Decls { decls, cont } => {
-                let func_names: Vec<Ident> = decls.iter().map(|decl| decl.func).collect();
+            anf::Expr::Decls { funcs, conts, body } => {
+                let func_names: Vec<Ident> = funcs.iter().map(|decl| decl.func).collect();
+                let cont_names: Vec<Ident> = conts.iter().map(|decl| decl.cont).collect();
+                let decl_names: Vec<Ident> = func_names
+                    .iter()
+                    .chain(cont_names.iter())
+                    .copied()
+                    .collect();
 
-                let mut call_graph: HashMap<Ident, HashSet<Ident>> = func_names
+                let mut call_graph: HashMap<Ident, HashSet<Ident>> = decl_names
                     .iter()
                     .map(|name| (*name, HashSet::new()))
                     .collect();
 
-                let decls: Vec<anf::Decl> = decls
+                let funcs: Vec<anf::FuncDecl> = funcs
                     .into_iter()
                     .map(|decl| {
-                        let anf::Decl { func, pars, body } = decl;
+                        let anf::FuncDecl {
+                            func,
+                            cont,
+                            pars,
+                            body,
+                        } = decl;
                         let body = self.visit_expr(body);
+                        self.used_set.remove(&cont);
                         for par in pars.iter() {
                             self.used_set.remove(par);
                         }
-                        for name in func_names.iter() {
+                        for name in decl_names.iter() {
                             if self.used_set.remove(name) {
                                 call_graph.get_mut(&func).unwrap().insert(*name);
                             }
                         }
-                        anf::Decl { func, pars, body }
+                        anf::FuncDecl {
+                            func,
+                            cont,
+                            pars,
+                            body,
+                        }
                     })
                     .collect();
 
-                let cont = Box::new(self.visit_expr(*cont));
+                let conts: Vec<anf::ContDecl> = conts
+                    .into_iter()
+                    .map(|decl| {
+                        let anf::ContDecl { cont, pars, body } = decl;
+                        let body = self.visit_expr(body);
+                        for par in pars.iter() {
+                            self.used_set.remove(par);
+                        }
+                        for name in decl_names.iter() {
+                            if self.used_set.remove(name) {
+                                call_graph.get_mut(&cont).unwrap().insert(*name);
+                            }
+                        }
+                        anf::ContDecl { cont, pars, body }
+                    })
+                    .collect();
 
-                let start: HashSet<Ident> = func_names
+                let body = Box::new(self.visit_expr(*body));
+
+                let start: HashSet<Ident> = decl_names
                     .iter()
                     .filter(|name| self.used_set.remove(name))
                     .copied()
@@ -97,53 +142,62 @@ impl Optimizer {
 
                 let reachable = calculate_reachable(&call_graph, &start);
 
-                let decls = decls
+                let funcs: Vec<_> = funcs
                     .into_iter()
                     .filter(|decl| reachable.contains(&decl.func))
                     .collect();
 
-                anf::Expr::Decls { decls, cont }
+                let conts: Vec<_> = conts
+                    .into_iter()
+                    .filter(|decl| reachable.contains(&decl.cont))
+                    .collect();
+
+                if funcs.is_empty() && conts.is_empty() {
+                    *body
+                } else {
+                    anf::Expr::Decls { funcs, conts, body }
+                }
             }
             anf::Expr::Prim {
                 bind,
                 prim,
                 args,
-                cont,
+                rest,
             } => {
                 assert!(prim.get_arity() == None || prim.get_arity() == Some(args.len()));
                 let args: Vec<Atom> = args.into_iter().map(|arg| self.visit_atom(arg)).collect();
                 match (prim, &args[..]) {
                     (PrimOpr::IAdd, [Atom::Int(a), Atom::Int(b)]) => {
                         self.atom_map.insert(bind, Atom::Int(a + b));
-                        self.visit_expr(*cont)
+                        self.visit_expr(*rest)
                     }
                     (PrimOpr::ISub, [Atom::Int(a), Atom::Int(b)]) => {
                         self.atom_map.insert(bind, Atom::Int(a - b));
-                        self.visit_expr(*cont)
+                        self.visit_expr(*rest)
                     }
                     (PrimOpr::IMul, [Atom::Int(a), Atom::Int(b)]) => {
                         self.atom_map.insert(bind, Atom::Int(a * b));
-                        self.visit_expr(*cont)
+                        self.visit_expr(*rest)
                     }
                     (PrimOpr::Move, [atom]) => {
                         self.atom_map.insert(bind, *atom);
-                        self.visit_expr(*cont)
+                        self.visit_expr(*rest)
                     }
                     (PrimOpr::Record, []) => {
                         self.atom_map.insert(bind, Atom::Unit);
-                        self.visit_expr(*cont)
+                        self.visit_expr(*rest)
                     }
                     (PrimOpr::Record, _) => {
                         self.record_map.insert(bind, args.clone());
-                        let cont = self.visit_expr(*cont);
+                        let cont = self.visit_expr(*rest);
                         if self.used_set.contains(&bind) {
                             self.used_set.remove(&bind);
-                            args.iter().for_each(|arg| self.mark_used(arg));
+                            args.iter().for_each(|arg| self.mark_val_used(arg));
                             anf::Expr::Prim {
                                 bind,
                                 prim,
                                 args,
-                                cont: Box::new(cont),
+                                rest: Box::new(cont),
                             }
                         } else {
                             cont
@@ -152,17 +206,17 @@ impl Optimizer {
                     (PrimOpr::Select, [rec, idx]) => {
                         if let Some(elems) = self.record_map.get(&rec.unwrap_var()) {
                             self.atom_map.insert(bind, elems[idx.unwrap_int() as usize]);
-                            self.visit_expr(*cont)
+                            self.visit_expr(*rest)
                         } else {
-                            let cont = self.visit_expr(*cont);
+                            let cont = self.visit_expr(*rest);
                             if self.used_set.contains(&bind) {
                                 self.used_set.remove(&bind);
-                                args.iter().for_each(|arg| self.mark_used(arg));
+                                args.iter().for_each(|arg| self.mark_val_used(arg));
                                 anf::Expr::Prim {
                                     bind,
                                     prim,
                                     args,
-                                    cont: Box::new(cont),
+                                    rest: Box::new(cont),
                                 }
                             } else {
                                 cont
@@ -170,17 +224,17 @@ impl Optimizer {
                         }
                     }
                     _ => {
-                        let cont = self.visit_expr(*cont);
+                        let cont = self.visit_expr(*rest);
                         // unused primitive elimination
                         // do purity check if we have impure primitive in the future
                         if self.used_set.contains(&bind) {
                             self.used_set.remove(&bind);
-                            args.iter().for_each(|arg| self.mark_used(arg));
+                            args.iter().for_each(|arg| self.mark_val_used(arg));
                             anf::Expr::Prim {
                                 bind,
                                 prim,
                                 args,
-                                cont: Box::new(cont),
+                                rest: Box::new(cont),
                             }
                         } else {
                             cont
@@ -188,23 +242,21 @@ impl Optimizer {
                     }
                 }
             }
-            anf::Expr::Call {
-                bind,
-                func,
-                args,
-                cont,
-            } => {
-                let func = self.visit_atom(func);
+            anf::Expr::Call { func, cont, args } => {
+                let func = self.visit_atom(Atom::Var(func)).unwrap_var();
+                let cont = self.visit_atom(Atom::Var(cont)).unwrap_var();
                 let args: Vec<Atom> = args.into_iter().map(|arg| self.visit_atom(arg)).collect();
-                let cont = Box::new(self.visit_expr(*cont));
-                self.mark_used(&func);
-                args.iter().for_each(|arg| self.mark_used(arg));
-                anf::Expr::Call {
-                    bind,
-                    func,
-                    args,
-                    cont,
-                }
+                self.used_set.insert(func);
+                self.used_set.insert(cont);
+                args.iter().for_each(|arg| self.mark_val_used(arg));
+                anf::Expr::Call { func, cont, args }
+            }
+            anf::Expr::Jump { cont, args } => {
+                let cont = self.visit_atom(Atom::Var(cont)).unwrap_var();
+                let args: Vec<Atom> = args.into_iter().map(|arg| self.visit_atom(arg)).collect();
+                self.used_set.insert(cont);
+                args.iter().for_each(|arg| self.mark_val_used(arg));
+                anf::Expr::Jump { cont, args }
             }
             anf::Expr::Ifte {
                 cond,
@@ -252,7 +304,7 @@ impl Optimizer {
                     _ => {
                         let trbr = Box::new(self.visit_expr(*trbr));
                         let flbr = Box::new(self.visit_expr(*flbr));
-                        args.iter().for_each(|arg| self.mark_used(arg));
+                        args.iter().for_each(|arg| self.mark_val_used(arg));
                         anf::Expr::Ifte {
                             cond,
                             args,
@@ -279,13 +331,13 @@ impl Optimizer {
                         .map(|(i, brch)| (i, self.visit_expr(brch)))
                         .collect();
                     let dflt = dflt.map(|dflt| Box::new(self.visit_expr(*dflt)));
-                    self.mark_used(&arg);
+                    self.mark_val_used(&arg);
                     anf::Expr::Switch { arg, brchs, dflt }
                 }
             }
             anf::Expr::Retn { res } => {
                 let res = self.visit_atom(res);
-                self.mark_used(&res);
+                self.mark_val_used(&res);
                 anf::Expr::Retn { res }
             }
         }
@@ -321,7 +373,7 @@ fn calculate_reachable(
 fn optimize_test_const_fold() {
     let s = r#"
 module Test where
-fn f() begin
+func f(k):
     let x = @iadd(1, 2);
     let r = @record(x, x);
     let x1 = @select(r, 0);
@@ -329,7 +381,6 @@ fn f() begin
     let y = @iadd(x1, x2);
     let z = @iadd(x1, y);
     return z;
-end
 "#;
     let modl = super::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
@@ -343,12 +394,11 @@ end
 fn optimize_test_dead_elim() {
     let s = r#"
 module Test where
-fn f() begin
+func f(k):
     let x = @iadd(a, b);
     let y = @iadd(x, c);
     let z = @iadd(x, y);
     return y;
-end
 "#;
     let expr = super::parser::parse_module(s).unwrap();
     println!("{}\n", expr);
@@ -361,20 +411,17 @@ end
 fn optimize_test_unused_func() {
     let s = r#"
 module Test where
-fn f() begin
-    decl
-        fn f(x) begin
-        return x; 
-        end
-        fn g(x) begin
-            let y = g(x);
-            return y; 
-        end
+func test(k):
+    decls
+        func f(k1):
+            call h(k1, 42);
+        func g(k2, x2):
+            call h(k2, 42);
+        func h(k3, x3):
+            jump k3(x3);
     in
-        let y = f(x);
-        return y;
+        call f(k);
     end
-end
 "#;
     let expr = super::parser::parse_module(s).unwrap();
     println!("{}\n", expr);
