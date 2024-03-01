@@ -1,5 +1,5 @@
 use super::instr::{Block, Instr, Module, Reg};
-use crate::optimize::anf::{self, Atom, Decl, Expr, PrimOpr};
+use crate::optimize::anf::{self, Atom, Expr, FuncDecl, PrimOpr};
 use crate::utils::ident::Ident;
 use std::collections::HashMap;
 
@@ -8,6 +8,7 @@ pub struct Codegen {
     blocks: Vec<Block>,
     max_reg: usize,
     reg_map: HashMap<Ident, Reg>,
+    cont_map: HashMap<Ident, Vec<Ident>>,
 }
 impl Codegen {
     pub fn run(modl: &anf::Module) -> Module {
@@ -16,6 +17,7 @@ impl Codegen {
             blocks: Vec::new(),
             max_reg: 0,
             reg_map: HashMap::new(),
+            cont_map: HashMap::new(),
         };
 
         pass.visit_module(modl);
@@ -44,9 +46,7 @@ impl Codegen {
     fn visit_atom(&mut self, atom: &Atom) -> Reg {
         if let Atom::Var(var) = atom {
             match self.lookup_var(var) {
-                Ok(reg2) => {
-                    return reg2;
-                }
+                Ok(reg) => reg,
                 Err(addr) => {
                     let reg = self.new_reg();
                     self.code.push(Instr::LitA(reg, addr));
@@ -80,12 +80,17 @@ impl Codegen {
 
     fn visit_module(&mut self, modl: &anf::Module) {
         for decl in modl.decls.iter() {
-            self.visit_decl(&decl)
+            self.visit_func_decl(&decl)
         }
     }
 
-    fn visit_decl(&mut self, decl: &Decl) {
-        let Decl { func, pars, body } = decl;
+    fn visit_func_decl(&mut self, decl: &FuncDecl) {
+        let FuncDecl {
+            func,
+            cont,
+            pars,
+            body,
+        } = decl;
         self.max_reg = 0;
 
         for par in pars.iter() {
@@ -94,7 +99,7 @@ impl Codegen {
             self.reg_map.insert(*par, reg);
         }
 
-        self.visit_expr(body);
+        self.visit_expr(body, *cont);
 
         let mut code = Vec::new();
         std::mem::swap(&mut code, &mut self.code);
@@ -107,16 +112,28 @@ impl Codegen {
         self.blocks.push(block);
     }
 
-    fn visit_expr(&mut self, expr: &Expr) {
+    fn visit_expr(&mut self, expr: &Expr, cont: Ident) {
         match expr {
-            Expr::Decls { decls: _, cont: _ } => {
-                panic!("code generation should be done after closure convertion!");
+            Expr::Decls { funcs, conts, body } => {
+                assert!(funcs.is_empty());
+                for decl in conts {
+                    for par in decl.pars.iter() {
+                        let reg = self.new_reg();
+                        self.reg_map.insert(*par, reg);
+                    }
+                    self.cont_map.insert(decl.cont, decl.pars.clone());
+                }
+                self.visit_expr(body, cont);
+                for decl in conts {
+                    self.code.push(Instr::Label(decl.cont));
+                    self.visit_expr(&decl.body, cont)
+                }
             }
             Expr::Prim {
                 bind,
                 prim,
                 args,
-                cont,
+                rest,
             } => {
                 let args: Vec<Reg> = args.iter().map(|arg| self.visit_atom(arg)).collect();
                 let ret = self.new_reg();
@@ -155,19 +172,26 @@ impl Codegen {
                     _ => unreachable!(),
                 }
                 self.reg_map.insert(*bind, ret);
-                self.visit_expr(cont);
+                self.visit_expr(rest, cont);
             }
             Expr::Call {
-                bind,
                 func,
+                cont: cont2,
                 args,
-                cont,
-            } => {
+            } if cont == *cont2 => {
                 for arg in args.iter().rev() {
                     let reg = self.visit_atom(arg);
                     self.code.push(Instr::Push(reg));
                 }
-                match self.lookup_var(&func.unwrap_var()) {
+                self.code.push(Instr::Jmp(*func));
+            }
+            Expr::Call { func, cont, args } => {
+                for arg in args.iter().rev() {
+                    let reg = self.visit_atom(arg);
+                    self.code.push(Instr::Push(reg));
+                }
+
+                match self.lookup_var(func) {
                     Ok(reg) => {
                         self.code.push(Instr::CallInd(reg));
                     }
@@ -175,10 +199,26 @@ impl Codegen {
                         self.code.push(Instr::Call(addr));
                     }
                 }
-                let ret = self.new_reg();
-                self.code.push(Instr::Pop(ret));
-                self.reg_map.insert(*bind, ret);
-                self.visit_expr(cont);
+
+                let pars = &self.cont_map[&cont];
+                assert_eq!(pars.len(), 1);
+                let res = self.lookup_var(&pars[0]).unwrap();
+                self.code.push(Instr::Pop(res));
+                self.code.push(Instr::Jmp(*cont));
+            }
+            Expr::Jump { cont: cont2, args } if cont == *cont2 => {
+                assert_eq!(args.len(), 1);
+                let reg = self.visit_atom(&args[0]);
+                self.code.push(Instr::Ret(reg));
+            }
+            Expr::Jump { cont, args } => {
+                let pars = self.cont_map.get(&cont).unwrap().clone();
+                for (par, arg) in pars.iter().zip(args.iter()) {
+                    let par = self.lookup_var(par).unwrap();
+                    let arg = self.visit_atom(arg);
+                    self.code.push(Instr::Move(par, arg));
+                }
+                self.code.push(Instr::Jmp(*cont));
             }
             Expr::Ifte {
                 cond,
@@ -214,9 +254,9 @@ impl Codegen {
                         unreachable!()
                     }
                 }
-                self.visit_expr(trbr);
+                self.visit_expr(trbr, cont);
                 self.code.push(Instr::Label(label));
-                self.visit_expr(flbr);
+                self.visit_expr(flbr, cont);
             }
             Expr::Switch { arg, brchs, dflt } => {
                 fn binary_search(
@@ -250,11 +290,11 @@ impl Codegen {
                 binary_search(self, temp_reg, arg, &brchs[..]);
                 for (_i, label, brch) in brchs {
                     self.code.push(Instr::Label(label));
-                    self.visit_expr(&brch);
+                    self.visit_expr(&brch, cont);
                 }
                 if let Some((label, dflt)) = dflt {
                     self.code.push(Instr::Label(label));
-                    self.visit_expr(&dflt);
+                    self.visit_expr(&dflt, cont);
                 }
             }
             Expr::Retn { res } => {
@@ -270,17 +310,16 @@ impl Codegen {
 fn codegen_test() {
     let s = r#"
 module test where
-fn f(x) begin
+func f(k, x):
     let a = @iadd(x, 1);
     let b = @iadd(a, 1);
     let c = @iadd(b, 1);
     let y = @iadd(c, 1);
-    return y;
-end
-fn main() begin
-    let z = f(42);
-    return z;
-end
+    jump k(x);
+
+func main(k):
+    call f(k, 42);
+
 "#;
     let modl = crate::optimize::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
