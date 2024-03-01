@@ -278,7 +278,7 @@ pub fn parse_module(input: &str) -> Option<Module> {
         Ok((input, mut modl)) => {
             let (input, _) = skip_space(input).unwrap();
             if input == "" {
-                // super::rename::Renamer::run(&mut modl);
+                super::rename::Renamer::run(&mut modl);
                 Some(modl)
             } else {
                 None

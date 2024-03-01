@@ -31,14 +31,34 @@ impl Renamer {
             decl.func = new;
         }
         for decl in decls {
-            self.visit_decl(decl);
+            self.visit_func_decl(decl);
         }
         self.context.leave_scope()
     }
 
-    fn visit_decl(&mut self, decl: &mut Decl) {
-        let Decl {
+    fn visit_func_decl(&mut self, decl: &mut FuncDecl) {
+        let FuncDecl {
             func: _,
+            cont,
+            pars,
+            body,
+        } = decl;
+        self.context.enter_scope();
+        let new = cont.uniquify();
+        self.context.insert(*cont, new);
+        *cont = new;
+        for par in pars {
+            let new = par.uniquify();
+            self.context.insert(*par, new);
+            *par = new;
+        }
+        self.visit_expr(body);
+        self.context.leave_scope();
+    }
+
+    fn visit_cont_decl(&mut self, decl: &mut ContDecl) {
+        let ContDecl {
+            cont: _,
             pars,
             body,
         } = decl;
@@ -54,47 +74,52 @@ impl Renamer {
 
     fn visit_expr(&mut self, expr: &mut Expr) {
         match expr {
-            Expr::Decls { decls, cont } => {
+            Expr::Decls { funcs, conts, body } => {
                 self.context.enter_scope();
-                for decl in decls.iter_mut() {
+                for decl in funcs.iter_mut() {
                     let new = decl.func.uniquify();
                     self.context.insert(decl.func, new);
                     decl.func = new;
                 }
-                for decl in decls {
-                    self.visit_decl(decl);
+                for decl in conts.iter_mut() {
+                    let new = decl.cont.uniquify();
+                    self.context.insert(decl.cont, new);
+                    decl.cont = new;
                 }
-                self.visit_expr(cont);
+                for decl in funcs {
+                    self.visit_func_decl(decl);
+                }
+                for decl in conts {
+                    self.visit_cont_decl(decl);
+                }
+                self.visit_expr(body);
                 self.context.leave_scope()
             }
             Expr::Prim {
                 bind,
                 prim: _,
                 args,
-                cont,
+                rest,
             } => {
                 args.iter_mut().for_each(|arg| self.visit_atom(arg));
                 self.context.enter_scope();
                 let new = bind.uniquify();
                 self.context.insert(*bind, new);
                 *bind = new;
-                self.visit_expr(cont);
+                self.visit_expr(rest);
                 self.context.leave_scope()
             }
-            Expr::Call {
-                bind,
-                func,
-                args,
-                cont,
-            } => {
-                self.visit_atom(func);
+            Expr::Call { func, cont, args } => {
+                let new = *self.context.get(func).unwrap();
+                *func = new;
+                let new = *self.context.get(cont).unwrap();
+                *cont = new;
                 args.iter_mut().for_each(|arg| self.visit_atom(arg));
-                self.context.enter_scope();
-                let new = bind.uniquify();
-                self.context.insert(*bind, new);
-                *bind = new;
-                self.visit_expr(cont);
-                self.context.leave_scope()
+            }
+            Expr::Jump { cont, args } => {
+                let new = *self.context.get(cont).unwrap();
+                *cont = new;
+                args.iter_mut().for_each(|arg| self.visit_atom(arg));
             }
             Expr::Ifte {
                 cond: _,
@@ -127,18 +152,18 @@ impl Renamer {
 fn rename_test() {
     let s = r#"
 module Test where
-fn f(x) begin
-    let x = @move(1);
-    decl
-        fn f(x) begin
-        return x; 
-        end
+func top1(x, y):
+    return x;
+func top2(x):
+    decls
+        func f(k, x, y, z):
+            jump k(x);
+        cont k(a):
+            return a;
     in
-        let y = f(42);
-        let z = @iadd(x, y);
-        return z;
+        let x = @iadd(1, 2);
+        call f(k, 1, 2, 3);
     end
-end
 "#;
     let mut modl = super::parser::parse_module(s).unwrap();
     println!("{}\n", modl);

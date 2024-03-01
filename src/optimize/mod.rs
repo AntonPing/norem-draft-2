@@ -6,4 +6,4 @@ pub mod anf;
 pub mod parser;
 pub mod pattern;
 pub mod printer;
-// pub mod rename;
+pub mod rename;
