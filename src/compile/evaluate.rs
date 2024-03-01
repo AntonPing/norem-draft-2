@@ -241,31 +241,34 @@ impl Evaluator {
 fn execute_test() {
     let s = r#"
 module test where
-fn f(x) begin
+func f(k, x):
     let y = @iadd(x, 1);
-    return y;
-end
-fn main() begin
-    let z = f(42);
-    return z;
-end
+    jump k(y);
+
+func main(top):
+    decls
+        cont k(x):
+            return x;
+    in
+        call f(k, 42);
+    end
 "#;
-    // let modl = crate::optimize::parser::parse_module(s).unwrap();
-    // println!("{}\n", modl);
-    // let modl = crate::optimize::closure::ClosConv::run(modl);
-    // println!("{}\n", modl);
-    // let mut modl = crate::compile::codegen::Codegen::run(&modl);
-    // println!("{}", modl);
-    // super::reg_alloc::RegAlloc::run(&mut modl);
-    // println!("{}", modl);
-    // let (code, map) = super::linking::Linker::run(&modl);
-    // for (i, line) in code.iter().enumerate() {
-    //     println!("{i}:\t{:?}", line);
-    // }
-    // let (_, entry) = map.iter().find(|(k, _)| k.as_str() == "main").unwrap();
-    // let mut rnr = Evaluator::new(code, *entry);
-    // unsafe {
-    //     rnr.run();
-    // }
-    // println!("{}", rnr);
+    let modl = crate::optimize::parser::parse_module(s).unwrap();
+    println!("{}\n", modl);
+    let modl = crate::optimize::closure::ClosConv::run(modl);
+    println!("{}\n", modl);
+    let mut modl = crate::compile::codegen::Codegen::run(&modl);
+    println!("{}", modl);
+    super::reg_alloc::RegAlloc::run(&mut modl);
+    println!("{}", modl);
+    let (code, map) = super::linking::Linker::run(&modl);
+    for (i, line) in code.iter().enumerate() {
+        println!("{i}:\t{:?}", line);
+    }
+    let (_, entry) = map.iter().find(|(k, _)| k.as_str() == "main").unwrap();
+    let mut rnr = Evaluator::new(code, *entry);
+    unsafe {
+        rnr.run();
+    }
+    println!("{}", rnr);
 }

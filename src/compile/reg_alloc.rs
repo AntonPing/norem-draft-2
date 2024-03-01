@@ -189,17 +189,17 @@ fn reg_rename(blk: &mut Block, map: &HashMap<Reg, Reg>) {
 fn reg_alloc_test() {
     let s = r#"
 module test where
-fn f(x) begin
-    let a = @iadd(x, 1);
-    let b = @iadd(a, 1);
-    let c = @iadd(b, 1);
-    let y = @iadd(c, 1);
-    return y;
-end
-fn main() begin
-    let z = f(42);
-    return z;
-end
+func f(k, x):
+    let y = @iadd(x, 1);
+    jump k(y);
+
+func main(top):
+    decls
+        cont k(x):
+            return x;
+    in
+        call f(k, 42);
+    end
 "#;
     let modl = crate::optimize::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
