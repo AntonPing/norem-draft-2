@@ -307,5 +307,5 @@ func top2(x):
     end
 "#;
     let res = parse_module(s).unwrap();
-    // println!("{}", res);
+    println!("{}", res);
 }

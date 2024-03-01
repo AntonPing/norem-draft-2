@@ -44,12 +44,27 @@ impl fmt::Display for IfCond {
     }
 }
 
-impl fmt::Display for Decl {
+impl fmt::Display for FuncDecl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Decl { func, pars, body } = self;
+        let FuncDecl {
+            func,
+            cont,
+            pars,
+            body,
+        } = self;
+        let pars = [cont].into_iter().chain(pars.iter()).format(&", ");
+        write!(f, "func {func}({pars}):")?;
+        write!(f, "{INDT}{NWLN}{body}{DEDT}")?;
+        Ok(())
+    }
+}
+
+impl fmt::Display for ContDecl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let ContDecl { cont, pars, body } = self;
         let pars = pars.iter().format(&", ");
-        write!(f, "fn {func}({pars})")?;
-        write!(f, "begin{INDT}{NWLN}{body}{DEDT}{NWLN}end")?;
+        write!(f, "cont {cont}({pars}):")?;
+        write!(f, "{INDT}{NWLN}{body}{DEDT}")?;
         Ok(())
     }
 }
@@ -57,31 +72,34 @@ impl fmt::Display for Decl {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expr::Decls { decls, cont } => {
-                write!(f, "decl{INDT}")?;
-                for decl in decls {
-                    write!(f, "{NWLN}{decl}")?;
+            Expr::Decls { funcs, conts, body } => {
+                write!(f, "decls{INDT}")?;
+                for func in funcs {
+                    write!(f, "{NWLN}{func}")?;
                 }
-                write!(f, "{DEDT}{NWLN}in{INDT}{NWLN}{cont}{DEDT}{NWLN}end")?;
+                for cont in conts {
+                    write!(f, "{NWLN}{cont}")?;
+                }
+                write!(f, "{DEDT}{NWLN}in{INDT}{NWLN}{body}{DEDT}{NWLN}end")?;
                 Ok(())
             }
             Expr::Prim {
                 bind,
                 prim,
                 args,
-                cont,
+                rest,
             } => {
                 let args = args.iter().format(&", ");
-                write!(f, "let {bind} = {prim}({args});{NWLN}{cont}")
+                write!(f, "let {bind} = {prim}({args});{NWLN}{rest}")
             }
-            Expr::Call {
-                bind,
-                func,
-                args,
-                cont,
-            } => {
+            Expr::Call { func, cont, args } => {
+                let cont = Atom::Var(*cont);
+                let args = [&cont].into_iter().chain(args.iter()).format(&", ");
+                write!(f, "call {func}({args});")
+            }
+            Expr::Jump { cont, args } => {
                 let args = args.iter().format(&", ");
-                write!(f, "let {bind} = {func}({args});{NWLN}{cont}")
+                write!(f, "jump {cont}({args});")
             }
             Expr::Ifte {
                 cond,
@@ -116,9 +134,9 @@ impl fmt::Display for Expr {
 impl fmt::Display for Module {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let Module { name, decls } = self;
-        write!(f, "module {} where{NWLN}", name)?;
+        write!(f, "module {} where", name)?;
         for decl in decls {
-            write!(f, "{}{NWLN}", decl)?;
+            write!(f, "{NWLN}{}{NWLN}", decl)?;
         }
         Ok(())
     }
