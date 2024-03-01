@@ -3,7 +3,7 @@ use crate::utils::ident::Ident;
 use std::collections::HashSet;
 
 pub struct ClosConv {
-    toplevel: Vec<Decl>,
+    toplevel: Vec<FuncDecl>,
     freevar: HashSet<Ident>,
 }
 
@@ -34,42 +34,73 @@ impl ClosConv {
     fn visit_module(&mut self, modl: Module) {
         let Module { name: _, decls } = modl;
         let expr = Expr::Decls {
-            decls,
-            cont: Box::new(Expr::Retn { res: Atom::Unit }),
+            funcs: decls,
+            conts: Vec::new(),
+            body: Box::new(Expr::Retn { res: Atom::Unit }),
         };
         self.visit_expr(expr);
     }
 
-    fn visit_decl(&mut self, decl: Decl) -> Decl {
-        let Decl { func, pars, body } = decl;
+    fn visit_func_decl(&mut self, decl: FuncDecl) -> FuncDecl {
+        let FuncDecl {
+            func,
+            cont,
+            pars,
+            body,
+        } = decl;
         let body = self.visit_expr(body);
         for par in pars.iter() {
             self.freevar.remove(par);
         }
-        Decl { func, pars, body }
+        FuncDecl {
+            func,
+            cont,
+            pars,
+            body,
+        }
+    }
+
+    fn visit_cont_decl(&mut self, decl: ContDecl) -> ContDecl {
+        let ContDecl { cont, pars, body } = decl;
+        let body = self.visit_expr(body);
+        for par in pars.iter() {
+            self.freevar.remove(par);
+        }
+        ContDecl { cont, pars, body }
     }
 
     fn visit_expr(&mut self, expr: Expr) -> Expr {
         match expr {
-            Expr::Decls { decls, cont } => {
-                // first time, scan free variables
-                let decls: Vec<Decl> = decls
+            Expr::Decls { funcs, conts, body } => {
+                // firstly, scan free variables
+                let funcs: Vec<FuncDecl> = funcs
                     .into_iter()
-                    .map(|decl| self.visit_decl(decl))
+                    .map(|decl| self.visit_func_decl(decl))
+                    .collect();
+                let conts: Vec<ContDecl> = conts
+                    .into_iter()
+                    .map(|decl| self.visit_cont_decl(decl))
                     .collect();
 
                 let mut frees = self.freevar.clone();
-                decls.iter().for_each(|decl| {
+                for decl in funcs.iter() {
                     frees.remove(&decl.func);
-                });
+                }
+                for decl in conts.iter() {
+                    frees.remove(&decl.cont);
+                }
+                let free_funcs: Vec<Ident> = funcs.iter().map(|decl| decl.func).collect();
 
-                let free_funcs: Vec<Ident> = decls.iter().map(|decl| decl.func).collect();
-
-                // second time, add closure parameter and unpack
-                let decls: Vec<Decl> = decls
+                // secondly, add closure parameter and unpack
+                let funcs: Vec<FuncDecl> = funcs
                     .into_iter()
                     .map(|decl| {
-                        let Decl { func, pars, body } = decl;
+                        let FuncDecl {
+                            func,
+                            cont,
+                            pars,
+                            body,
+                        } = decl;
                         let c = Ident::fresh(&"c");
                         let pars: Vec<Ident> = [c].iter().chain(pars.iter()).copied().collect();
                         let body = frees
@@ -79,91 +110,96 @@ impl ClosConv {
                                 bind: *x,
                                 prim: PrimOpr::Select,
                                 args: vec![Atom::Var(c), Atom::Int(i as i64)],
-                                cont: Box::new(acc),
+                                rest: Box::new(acc),
                             });
                         let body = free_funcs.iter().fold(body, |acc, func| Expr::Prim {
                             bind: *func,
                             prim: PrimOpr::Record,
                             args: vec![Atom::Var(*func), Atom::Var(c)],
-                            cont: Box::new(acc),
+                            rest: Box::new(acc),
                         });
 
-                        Decl { func, pars, body }
+                        FuncDecl {
+                            func,
+                            cont,
+                            pars,
+                            body,
+                        }
                     })
                     .collect();
 
-                let cont = self.visit_expr(*cont);
-
                 let c = Ident::fresh(&"c");
 
-                let cont = decls
+                let body = self.visit_expr(*body);
+
+                let body = funcs
                     .iter()
                     .map(|decl| decl.func)
-                    .fold(cont, |acc, func| Expr::Prim {
+                    .fold(body, |acc, func| Expr::Prim {
                         bind: func,
                         prim: PrimOpr::Record,
                         args: vec![Atom::Var(func), Atom::Var(c)],
-                        cont: Box::new(acc),
+                        rest: Box::new(acc),
                     });
 
-                let cont = Expr::Prim {
+                let body = Expr::Prim {
                     bind: c,
                     prim: PrimOpr::Record,
                     args: frees.iter().map(|x| Atom::Var(*x)).collect(),
-                    cont: Box::new(cont),
+                    rest: Box::new(body),
                 };
 
-                for decl in decls {
+                for decl in funcs {
                     self.freevar.remove(&decl.func);
                     self.toplevel.push(decl);
                 }
 
-                cont
+                Expr::Decls {
+                    funcs: Vec::new(),
+                    conts,
+                    body: Box::new(body),
+                }
             }
             Expr::Prim {
                 bind,
                 prim,
                 args,
-                cont,
+                rest,
             } => {
-                let cont = Box::new(self.visit_expr(*cont));
+                let rest = Box::new(self.visit_expr(*rest));
                 self.freevar.remove(&bind);
                 let args: Vec<Atom> = args.into_iter().map(|arg| self.visit_atom(arg)).collect();
                 Expr::Prim {
                     bind,
                     prim,
                     args,
-                    cont,
+                    rest,
                 }
             }
-            Expr::Call {
-                bind,
-                func,
-                args,
-                cont,
-            } => {
-                let cont = Box::new(self.visit_expr(*cont));
-                self.freevar.remove(&bind);
+            Expr::Call { func, cont, args } => {
+                self.visit_atom(Atom::Var(func));
                 let args: Vec<Atom> = args.into_iter().map(|arg| self.visit_atom(arg)).collect();
-                let func = self.visit_atom(func);
                 let f = Ident::fresh(&"f");
                 let c = Ident::fresh(&"c");
                 Expr::Prim {
                     bind: f,
                     prim: PrimOpr::Select,
-                    args: vec![func, Atom::Int(0)],
-                    cont: Box::new(Expr::Prim {
+                    args: vec![Atom::Var(func), Atom::Int(0)],
+                    rest: Box::new(Expr::Prim {
                         bind: c,
                         prim: PrimOpr::Select,
-                        args: vec![func, Atom::Int(1)],
-                        cont: Box::new(Expr::Call {
-                            bind,
-                            func: Atom::Var(f),
-                            args: [Atom::Var(c)].into_iter().chain(args.into_iter()).collect(),
+                        args: vec![Atom::Var(func), Atom::Int(1)],
+                        rest: Box::new(Expr::Call {
+                            func: f,
                             cont,
+                            args: [Atom::Var(c)].into_iter().chain(args.into_iter()).collect(),
                         }),
                     }),
                 }
+            }
+            Expr::Jump { cont, args } => {
+                let args: Vec<Atom> = args.into_iter().map(|arg| self.visit_atom(arg)).collect();
+                Expr::Jump { cont, args }
             }
             Expr::Ifte {
                 cond,
@@ -203,21 +239,22 @@ impl ClosConv {
 fn clos_conv_test_1() {
     let s = r#"
 module Test where
-fn f(x) begin
-    decl
-        fn g(y) begin
-            let z = @iadd(x, y);
-            return z;
-        end
+func f(k1, x1):
+    decls
+        func g(k2, x2):
+            let r = @iadd(x1, x2);
+            jump k2(r);
     in
-        return g;
+        jump k1(g);
     end
-end
-fn top(x) begin
-    let h = f(1);
-    let r = h(2);
-    return r;
-end
+
+func top(k):
+    decls
+        cont next(h):
+            call h(k, 2);
+    in
+        call f(next, 1);
+    end
 "#;
     let modl = super::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
