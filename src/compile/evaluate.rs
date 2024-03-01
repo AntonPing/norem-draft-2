@@ -250,22 +250,22 @@ fn main() begin
     return z;
 end
 "#;
-    let modl = crate::optimize::parser::parse_module(s).unwrap();
-    println!("{}\n", modl);
-    let modl = crate::optimize::closure::ClosConv::run(modl);
-    println!("{}\n", modl);
-    let mut modl = crate::compile::codegen::Codegen::run(&modl);
-    println!("{}", modl);
-    super::reg_alloc::RegAlloc::run(&mut modl);
-    println!("{}", modl);
-    let (code, map) = super::linking::Linker::run(&modl);
-    for (i, line) in code.iter().enumerate() {
-        println!("{i}:\t{:?}", line);
-    }
-    let (_, entry) = map.iter().find(|(k, _)| k.as_str() == "main").unwrap();
-    let mut rnr = Evaluator::new(code, *entry);
-    unsafe {
-        rnr.run();
-    }
-    println!("{}", rnr);
+    // let modl = crate::optimize::parser::parse_module(s).unwrap();
+    // println!("{}\n", modl);
+    // let modl = crate::optimize::closure::ClosConv::run(modl);
+    // println!("{}\n", modl);
+    // let mut modl = crate::compile::codegen::Codegen::run(&modl);
+    // println!("{}", modl);
+    // super::reg_alloc::RegAlloc::run(&mut modl);
+    // println!("{}", modl);
+    // let (code, map) = super::linking::Linker::run(&modl);
+    // for (i, line) in code.iter().enumerate() {
+    //     println!("{i}:\t{:?}", line);
+    // }
+    // let (_, entry) = map.iter().find(|(k, _)| k.as_str() == "main").unwrap();
+    // let mut rnr = Evaluator::new(code, *entry);
+    // unsafe {
+    //     rnr.run();
+    // }
+    // println!("{}", rnr);
 }

@@ -118,8 +118,16 @@ impl IfCond {
 }
 
 #[derive(Clone, Debug)]
-pub struct Decl {
+pub struct FuncDecl {
     pub func: Ident,
+    pub cont: Ident,
+    pub pars: Vec<Ident>,
+    pub body: Expr,
+}
+
+#[derive(Clone, Debug)]
+pub struct ContDecl {
+    pub cont: Ident,
     pub pars: Vec<Ident>,
     pub body: Expr,
 }
@@ -127,20 +135,24 @@ pub struct Decl {
 #[derive(Clone, Debug)]
 pub enum Expr {
     Decls {
-        decls: Vec<Decl>,
-        cont: Box<Expr>,
+        funcs: Vec<FuncDecl>,
+        conts: Vec<ContDecl>,
+        body: Box<Expr>,
     },
     Prim {
         bind: Ident,
         prim: PrimOpr,
         args: Vec<Atom>,
-        cont: Box<Expr>,
+        rest: Box<Expr>,
     },
     Call {
-        bind: Ident,
-        func: Atom,
+        func: Ident,
+        cont: Ident,
         args: Vec<Atom>,
-        cont: Box<Expr>,
+    },
+    Jump {
+        cont: Ident,
+        args: Vec<Atom>,
     },
     Ifte {
         cond: IfCond,
@@ -161,5 +173,5 @@ pub enum Expr {
 #[derive(Clone, Debug)]
 pub struct Module {
     pub name: Ident,
-    pub decls: Vec<Decl>,
+    pub decls: Vec<FuncDecl>,
 }
