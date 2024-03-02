@@ -1,5 +1,5 @@
-use super::anf::*;
-use crate::optimize::anf::PrimOpr;
+use super::cps::*;
+use crate::optimize::cps::PrimOpr;
 use crate::utils::ident::Ident;
 use std::collections::{HashMap, HashSet};
 

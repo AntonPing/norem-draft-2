@@ -1,5 +1,5 @@
 use super::instr::{Block, Instr, Module, Reg};
-use crate::optimize::anf::{self, Atom, Expr, FuncDecl, PrimOpr};
+use crate::optimize::cps::{self, Atom, Expr, FuncDecl, PrimOpr};
 use crate::utils::ident::Ident;
 use std::collections::HashMap;
 
@@ -11,7 +11,7 @@ pub struct Codegen {
     cont_map: HashMap<Ident, Vec<Ident>>,
 }
 impl Codegen {
-    pub fn run(modl: &anf::Module) -> Module {
+    pub fn run(modl: &cps::Module) -> Module {
         let mut pass = Codegen {
             code: Vec::new(),
             blocks: Vec::new(),
@@ -78,7 +78,7 @@ impl Codegen {
         }
     }
 
-    fn visit_module(&mut self, modl: &anf::Module) {
+    fn visit_module(&mut self, modl: &cps::Module) {
         for decl in modl.decls.iter() {
             self.visit_func_decl(&decl)
         }
@@ -229,23 +229,23 @@ impl Codegen {
                 let args: Vec<Reg> = args.iter().map(|arg| self.visit_atom(arg)).collect();
                 let label = Ident::fresh(&"label");
                 match (cond, &args[..]) {
-                    (anf::IfCond::BTrue, [arg]) => {
+                    (cps::IfCond::BTrue, [arg]) => {
                         self.code.push(Instr::JmpFl(*arg, label));
                     }
-                    (anf::IfCond::BFalse, [arg]) => {
+                    (cps::IfCond::BFalse, [arg]) => {
                         self.code.push(Instr::JmpTr(*arg, label));
                     }
-                    (anf::IfCond::ICmpGr, [arg1, arg2]) => {
+                    (cps::IfCond::ICmpGr, [arg1, arg2]) => {
                         let temp_reg = self.new_reg();
                         self.code.push(Instr::ICmpLs(temp_reg, *arg1, *arg2));
                         self.code.push(Instr::JmpFl(temp_reg, label));
                     }
-                    (anf::IfCond::ICmpEq, [arg1, arg2]) => {
+                    (cps::IfCond::ICmpEq, [arg1, arg2]) => {
                         let temp_reg = self.new_reg();
                         self.code.push(Instr::ICmpEq(temp_reg, *arg1, *arg2));
                         self.code.push(Instr::JmpFl(temp_reg, label));
                     }
-                    (anf::IfCond::ICmpLs, [arg1, arg2]) => {
+                    (cps::IfCond::ICmpLs, [arg1, arg2]) => {
                         let temp_reg = self.new_reg();
                         self.code.push(Instr::ICmpLs(temp_reg, *arg1, *arg2));
                         self.code.push(Instr::JmpFl(temp_reg, label));

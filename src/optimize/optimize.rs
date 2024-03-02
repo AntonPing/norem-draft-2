@@ -1,4 +1,4 @@
-use super::anf::{self, Atom, IfCond, Module, PrimOpr};
+use super::cps::{self, Atom, IfCond, Module, PrimOpr};
 use crate::utils::ident::Ident;
 use std::collections::{HashMap, HashSet};
 
@@ -37,15 +37,15 @@ impl Optimizer {
         }
     }
 
-    fn visit_module(&mut self, modl: anf::Module) -> anf::Module {
+    fn visit_module(&mut self, modl: cps::Module) -> cps::Module {
         let Module { name, decls } = modl;
 
         let func_names: Vec<Ident> = decls.iter().map(|decl| decl.func).collect();
 
-        let decls: Vec<anf::FuncDecl> = decls
+        let decls: Vec<cps::FuncDecl> = decls
             .into_iter()
             .map(|decl| {
-                let anf::FuncDecl {
+                let cps::FuncDecl {
                     func,
                     cont,
                     pars,
@@ -59,7 +59,7 @@ impl Optimizer {
                 for name in func_names.iter() {
                     self.used_set.remove(name);
                 }
-                anf::FuncDecl {
+                cps::FuncDecl {
                     func,
                     cont,
                     pars,
@@ -71,9 +71,9 @@ impl Optimizer {
         Module { name, decls }
     }
 
-    fn visit_expr(&mut self, expr: anf::Expr) -> anf::Expr {
+    fn visit_expr(&mut self, expr: cps::Expr) -> cps::Expr {
         match expr {
-            anf::Expr::Decls { funcs, conts, body } => {
+            cps::Expr::Decls { funcs, conts, body } => {
                 let func_names: Vec<Ident> = funcs.iter().map(|decl| decl.func).collect();
                 let cont_names: Vec<Ident> = conts.iter().map(|decl| decl.cont).collect();
                 let decl_names: Vec<Ident> = func_names
@@ -87,10 +87,10 @@ impl Optimizer {
                     .map(|name| (*name, HashSet::new()))
                     .collect();
 
-                let funcs: Vec<anf::FuncDecl> = funcs
+                let funcs: Vec<cps::FuncDecl> = funcs
                     .into_iter()
                     .map(|decl| {
-                        let anf::FuncDecl {
+                        let cps::FuncDecl {
                             func,
                             cont,
                             pars,
@@ -106,7 +106,7 @@ impl Optimizer {
                                 call_graph.get_mut(&func).unwrap().insert(*name);
                             }
                         }
-                        anf::FuncDecl {
+                        cps::FuncDecl {
                             func,
                             cont,
                             pars,
@@ -115,10 +115,10 @@ impl Optimizer {
                     })
                     .collect();
 
-                let conts: Vec<anf::ContDecl> = conts
+                let conts: Vec<cps::ContDecl> = conts
                     .into_iter()
                     .map(|decl| {
-                        let anf::ContDecl { cont, pars, body } = decl;
+                        let cps::ContDecl { cont, pars, body } = decl;
                         let body = self.visit_expr(body);
                         for par in pars.iter() {
                             self.used_set.remove(par);
@@ -128,7 +128,7 @@ impl Optimizer {
                                 call_graph.get_mut(&cont).unwrap().insert(*name);
                             }
                         }
-                        anf::ContDecl { cont, pars, body }
+                        cps::ContDecl { cont, pars, body }
                     })
                     .collect();
 
@@ -155,10 +155,10 @@ impl Optimizer {
                 if funcs.is_empty() && conts.is_empty() {
                     *body
                 } else {
-                    anf::Expr::Decls { funcs, conts, body }
+                    cps::Expr::Decls { funcs, conts, body }
                 }
             }
-            anf::Expr::Prim {
+            cps::Expr::Prim {
                 bind,
                 prim,
                 args,
@@ -193,7 +193,7 @@ impl Optimizer {
                         if self.used_set.contains(&bind) {
                             self.used_set.remove(&bind);
                             args.iter().for_each(|arg| self.mark_val_used(arg));
-                            anf::Expr::Prim {
+                            cps::Expr::Prim {
                                 bind,
                                 prim,
                                 args,
@@ -212,7 +212,7 @@ impl Optimizer {
                             if self.used_set.contains(&bind) {
                                 self.used_set.remove(&bind);
                                 args.iter().for_each(|arg| self.mark_val_used(arg));
-                                anf::Expr::Prim {
+                                cps::Expr::Prim {
                                     bind,
                                     prim,
                                     args,
@@ -230,7 +230,7 @@ impl Optimizer {
                         if self.used_set.contains(&bind) {
                             self.used_set.remove(&bind);
                             args.iter().for_each(|arg| self.mark_val_used(arg));
-                            anf::Expr::Prim {
+                            cps::Expr::Prim {
                                 bind,
                                 prim,
                                 args,
@@ -242,23 +242,23 @@ impl Optimizer {
                     }
                 }
             }
-            anf::Expr::Call { func, cont, args } => {
+            cps::Expr::Call { func, cont, args } => {
                 let func = self.visit_atom(Atom::Var(func)).unwrap_var();
                 let cont = self.visit_atom(Atom::Var(cont)).unwrap_var();
                 let args: Vec<Atom> = args.into_iter().map(|arg| self.visit_atom(arg)).collect();
                 self.used_set.insert(func);
                 self.used_set.insert(cont);
                 args.iter().for_each(|arg| self.mark_val_used(arg));
-                anf::Expr::Call { func, cont, args }
+                cps::Expr::Call { func, cont, args }
             }
-            anf::Expr::Jump { cont, args } => {
+            cps::Expr::Jump { cont, args } => {
                 let cont = self.visit_atom(Atom::Var(cont)).unwrap_var();
                 let args: Vec<Atom> = args.into_iter().map(|arg| self.visit_atom(arg)).collect();
                 self.used_set.insert(cont);
                 args.iter().for_each(|arg| self.mark_val_used(arg));
-                anf::Expr::Jump { cont, args }
+                cps::Expr::Jump { cont, args }
             }
-            anf::Expr::Ifte {
+            cps::Expr::Ifte {
                 cond,
                 args,
                 trbr,
@@ -305,7 +305,7 @@ impl Optimizer {
                         let trbr = Box::new(self.visit_expr(*trbr));
                         let flbr = Box::new(self.visit_expr(*flbr));
                         args.iter().for_each(|arg| self.mark_val_used(arg));
-                        anf::Expr::Ifte {
+                        cps::Expr::Ifte {
                             cond,
                             args,
                             trbr,
@@ -314,7 +314,7 @@ impl Optimizer {
                     }
                 }
             }
-            anf::Expr::Switch { arg, brchs, dflt } => {
+            cps::Expr::Switch { arg, brchs, dflt } => {
                 let arg = self.visit_atom(arg);
 
                 if let Atom::Int(n) = arg {
@@ -332,13 +332,13 @@ impl Optimizer {
                         .collect();
                     let dflt = dflt.map(|dflt| Box::new(self.visit_expr(*dflt)));
                     self.mark_val_used(&arg);
-                    anf::Expr::Switch { arg, brchs, dflt }
+                    cps::Expr::Switch { arg, brchs, dflt }
                 }
             }
-            anf::Expr::Retn { res } => {
+            cps::Expr::Retn { res } => {
                 let res = self.visit_atom(res);
                 self.mark_val_used(&res);
-                anf::Expr::Retn { res }
+                cps::Expr::Retn { res }
             }
         }
     }
