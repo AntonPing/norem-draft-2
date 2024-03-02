@@ -9,7 +9,7 @@ pub fn compile_file(path: &String) -> Value {
     syntax::rename::rename_module(&mut modl).expect("failed in identifier renaming phase!");
     typing::check::check_module(&modl).expect("failed in type checking phase!");
 
-    let modl = optimize::normalize::Normalizer::run(&modl);
+    let modl = optimize::cps_trans::Translator::run(&modl);
     let modl = optimize::optimize::Optimizer::run(modl);
     let mark = optimize::inline::InlineScan::run(&modl);
     let modl = optimize::inline::InlinePerform::run(modl, mark);

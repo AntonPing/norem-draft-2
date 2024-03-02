@@ -10,23 +10,23 @@ use crate::syntax::ast::{self, Pattern, Varient};
 use crate::utils::ident::Ident;
 use crate::utils::intern::InternStr;
 
-pub struct Normalizer {
+pub struct Translator {
     cons_map: HashMap<Ident, Ident>,
     data_map: HashMap<Ident, Vec<Varient>>,
 }
 
-impl Normalizer {
+impl Translator {
     pub fn run(modl: &ast::Module) -> cps::Module {
-        let mut pass = Normalizer {
+        let mut pass = Translator {
             cons_map: HashMap::new(),
             data_map: HashMap::new(),
         };
-        let mut modl = pass.normalize_module(modl);
+        let mut modl = pass.translate_module(modl);
         super::rename::Renamer::run(&mut modl);
         modl
     }
 
-    pub fn normalize_module(&mut self, modl: &ast::Module) -> cps::Module {
+    pub fn translate_module(&mut self, modl: &ast::Module) -> cps::Module {
         let ast::Module { name, decls } = modl;
         for decl in decls.iter() {
             match decl {
@@ -46,13 +46,13 @@ impl Normalizer {
         }
         let decls = decls
             .iter()
-            .flat_map(|decl| self.normalize_func_decl(decl))
+            .flat_map(|decl| self.translate_func_decl(decl))
             .collect();
 
         cps::Module { name: *name, decls }
     }
 
-    pub fn normalize_func_decl(&mut self, decl: &ast::Decl) -> Option<cps::FuncDecl> {
+    pub fn translate_func_decl(&mut self, decl: &ast::Decl) -> Option<cps::FuncDecl> {
         match decl {
             ast::Decl::Func {
                 ident,
@@ -70,7 +70,7 @@ impl Normalizer {
                     func: *ident,
                     cont: k,
                     pars: pars.iter().map(|(par, _typ)| *par).collect(),
-                    body: self.normalize_expr_with_cont(
+                    body: self.translate_expr(
                         body,
                         r,
                         cps::Expr::Jump {
@@ -84,29 +84,9 @@ impl Normalizer {
         }
     }
 
-    pub fn normalize_expr(expr: &ast::Expr) -> cps::Expr {
-        let mut pass = Normalizer {
-            cons_map: HashMap::new(),
-            data_map: HashMap::new(),
-        };
-        let bind = Ident::fresh(&"r");
-        pass.normalize_expr_with_cont(
-            expr,
-            bind,
-            cps::Expr::Retn {
-                res: Atom::Var(bind),
-            },
-        )
-    }
-
-    // translate from ast::Expr to anf::Expr, basically ssa translation
+    // translate from ast::Expr to cps::Expr, cps translation
     // order of evaluation for function arguments: from right to left
-    fn normalize_expr_with_cont(
-        &mut self,
-        expr: &ast::Expr,
-        bind: Ident,
-        rest: cps::Expr,
-    ) -> cps::Expr {
+    fn translate_expr(&mut self, expr: &ast::Expr, bind: Ident, rest: cps::Expr) -> cps::Expr {
         match expr {
             ast::Expr::Lit { lit, span: _ } => {
                 //  normalize(v, bind, rest) =
@@ -149,7 +129,7 @@ impl Normalizer {
                         args: xs.iter().map(|x| cps::Atom::Var(*x)).collect(),
                         rest: Box::new(rest),
                     },
-                    |rest, (bind, arg)| self.normalize_expr_with_cont(arg, *bind, rest),
+                    |rest, (bind, arg)| self.translate_expr(arg, *bind, rest),
                 )
             }
             ast::Expr::Func {
@@ -174,7 +154,7 @@ impl Normalizer {
                         func: f,
                         cont: k,
                         pars: pars.clone(),
-                        body: self.normalize_expr_with_cont(
+                        body: self.translate_expr(
                             body,
                             r,
                             cps::Expr::Jump {
@@ -238,7 +218,7 @@ impl Normalizer {
                                 rest: Box::new(rest),
                             }),
                         },
-                        |rest, (bind, expr)| self.normalize_expr_with_cont(&expr, *bind, rest),
+                        |rest, (bind, expr)| self.translate_expr(&expr, *bind, rest),
                     )
             }
             ast::Expr::App {
@@ -285,7 +265,7 @@ impl Normalizer {
                                 args: xs.iter().map(|x| Atom::Var(*x)).collect(),
                             }),
                         },
-                        |rest, (bind, arg)| self.normalize_expr_with_cont(arg, *bind, rest),
+                        |rest, (bind, arg)| self.translate_expr(arg, *bind, rest),
                     )
             }
             ast::Expr::Ifte {
@@ -312,7 +292,7 @@ impl Normalizer {
                 let x2 = Ident::fresh(&"x");
                 let x3 = Ident::fresh(&"x");
 
-                let trbr = self.normalize_expr_with_cont(
+                let trbr = self.translate_expr(
                     trbr,
                     x2,
                     cps::Expr::Jump {
@@ -320,7 +300,7 @@ impl Normalizer {
                         args: vec![Atom::Var(x2)],
                     },
                 );
-                let flbr = self.normalize_expr_with_cont(
+                let flbr = self.translate_expr(
                     flbr,
                     x3,
                     cps::Expr::Jump {
@@ -335,7 +315,7 @@ impl Normalizer {
                         pars: vec![bind],
                         body: rest,
                     }],
-                    body: Box::new(self.normalize_expr_with_cont(
+                    body: Box::new(self.translate_expr(
                         cond,
                         x1,
                         cps::Expr::Ifte {
@@ -389,7 +369,7 @@ impl Normalizer {
                     .map(|rule| {
                         let act = Ident::fresh(&"a");
                         let r = Ident::fresh(&"r");
-                        let body = self.normalize_expr_with_cont(
+                        let body = self.translate_expr(
                             &rule.body,
                             r,
                             cps::Expr::Jump {
@@ -421,22 +401,22 @@ impl Normalizer {
                     conts: decls,
                     body: Box::new(body),
                 };
-                self.normalize_expr_with_cont(expr, obj, rest)
+                self.translate_expr(expr, obj, rest)
             }
             ast::Expr::Stmt { stmt, cont, .. } => {
                 //  normalize(let x = e1; e2, bind, rest) =
                 //  normalize(e1, x, normalize(e2, bind, rest))
-                let cont = self.normalize_expr_with_cont(cont, bind, rest);
+                let cont = self.translate_expr(cont, bind, rest);
                 match stmt.deref() {
                     ast::Stmt::Let {
                         ident,
                         typ: _,
                         expr,
                         span: _,
-                    } => self.normalize_expr_with_cont(expr, *ident, cont),
+                    } => self.translate_expr(expr, *ident, cont),
                     ast::Stmt::Do { expr, span: _ } => {
                         let ident = Ident::fresh(&"_");
-                        self.normalize_expr_with_cont(expr, ident, cont)
+                        self.translate_expr(expr, ident, cont)
                     }
                 }
             }
@@ -559,6 +539,6 @@ end
 "#;
     let mut modl = crate::syntax::parser::parse_module(s).unwrap();
     crate::syntax::rename::rename_module(&mut modl).unwrap();
-    let res = Normalizer::run(&modl);
+    let res = Translator::run(&modl);
     println!("{}", res);
 }
