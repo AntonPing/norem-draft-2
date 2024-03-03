@@ -326,6 +326,20 @@ impl<'src> Parser<'src> {
                 let span = Span { start, end };
                 Some(Expr::Case { expr, rules, span })
             }
+            Token::Ref => {
+                self.match_token(Token::Ref)?;
+                let expr = Box::new(self.parse_expr()?);
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Some(Expr::NewRef { expr, span })
+            }
+            Token::Caret => {
+                self.match_token(Token::Caret)?;
+                let expr = Box::new(self.parse_expr()?);
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Some(Expr::RefGet { expr, span })
+            }
             Token::Begin => self.parse_block(),
             Token::LParen => {
                 let res = self.surround(Token::LParen, Token::RParen, |par| par.parse_expr())?;
@@ -367,9 +381,21 @@ impl<'src> Parser<'src> {
             }
             _tok => {
                 let expr = self.parse_expr()?;
-                let end = self.end_pos();
-                let span = Span { start, end };
-                Some(Stmt::Do { expr, span })
+                if self.peek_token() == Token::Assign {
+                    self.match_token(Token::Assign)?;
+                    let expr2 = self.parse_expr()?;
+                    let end = self.end_pos();
+                    let span = Span { start, end };
+                    Some(Stmt::Assign {
+                        lhs: Box::new(expr),
+                        rhs: Box::new(expr2),
+                        span,
+                    })
+                } else {
+                    let end = self.end_pos();
+                    let span = Span { start, end };
+                    Some(Stmt::Do { expr, span })
+                }
             }
         }
     }
@@ -740,7 +766,9 @@ begin
 end
 function id[T](x: T) -> T
 begin
-    x
+    let r = ref 42;
+    r := x;
+    ^r
 end
 "#;
     let mut par = Parser::new(s);
