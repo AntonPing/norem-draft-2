@@ -167,15 +167,20 @@ pub struct Varient {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct FuncSign {
+    pub func: Ident,
+    pub polys: Vec<Ident>,
+    pub pars: Vec<(Ident, Type)>,
+    pub res: Type,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum Decl {
     Func {
-        ident: Ident,
-        polys: Vec<Ident>,
-        pars: Vec<(Ident, Type)>,
-        res: Type,
-        span1: Span,
+        sign: FuncSign,
         body: Expr,
-        span2: Span,
+        span: Span,
     },
     Data {
         ident: Ident,
@@ -213,7 +218,7 @@ impl Stmt {
 impl Decl {
     pub fn get_span(&self) -> &Span {
         match self {
-            Decl::Func { span2, .. } => span2,
+            Decl::Func { span, .. } => span,
             Decl::Data { span, .. } => span,
         }
     }

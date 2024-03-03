@@ -225,13 +225,16 @@ impl TypeChecker {
     fn check_decl(&mut self, decl: &Decl) -> CheckResult<()> {
         match decl {
             Decl::Func {
-                ident: _,
-                polys: _,
-                pars,
-                res,
-                span1: _,
+                sign:
+                    FuncSign {
+                        func: _,
+                        polys: _,
+                        pars,
+                        res,
+                        span: _,
+                    },
                 body,
-                span2: _,
+                span: _,
             } => {
                 for (par, typ) in pars {
                     self.val_ctx.insert(*par, (Vec::new(), typ.into()));
@@ -249,19 +252,22 @@ impl TypeChecker {
         for decl in decls {
             match decl {
                 Decl::Func {
-                    ident,
-                    polys,
-                    pars,
-                    res,
-                    span1: _,
+                    sign:
+                        FuncSign {
+                            func,
+                            polys,
+                            pars,
+                            res,
+                            span: _,
+                        },
                     body: _,
-                    span2: _,
+                    span: _,
                 } => {
                     let (_, par_tys): (Vec<Ident>, Vec<UnifyType>) =
                         pars.iter().map(|(par, typ)| (par, typ.into())).unzip();
                     let res_ty: UnifyType = res.into();
                     let func_ty = UnifyType::Func(par_tys, Box::new(res_ty));
-                    self.val_ctx.insert(*ident, (polys.clone(), func_ty));
+                    self.val_ctx.insert(*func, (polys.clone(), func_ty));
                 }
                 Decl::Data {
                     ident,

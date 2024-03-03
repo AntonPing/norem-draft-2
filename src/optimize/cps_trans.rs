@@ -6,7 +6,7 @@ use super::cps::{self, Atom, ContDecl, PrimOpr};
 use super::pattern::PatnMatrix;
 
 use crate::optimize::pattern;
-use crate::syntax::ast::{self, Pattern, Varient};
+use crate::syntax::ast::{self, FuncSign, Pattern, Varient};
 use crate::utils::ident::Ident;
 use crate::utils::intern::InternStr;
 
@@ -55,19 +55,22 @@ impl Translator {
     pub fn translate_func_decl(&mut self, decl: &ast::Decl) -> Option<cps::FuncDecl> {
         match decl {
             ast::Decl::Func {
-                ident,
-                polys: _,
-                pars,
-                res: _,
-                span1: _,
+                sign:
+                    FuncSign {
+                        func,
+                        polys: _,
+                        pars,
+                        res: _,
+                        span: _,
+                    },
                 body,
-                span2: _,
+                span: _,
             } => {
                 let k = Ident::fresh(&"k");
                 let r = Ident::fresh(&"r");
 
                 Some(cps::FuncDecl {
-                    func: *ident,
+                    func: *func,
                     cont: k,
                     pars: pars.iter().map(|(par, _typ)| *par).collect(),
                     body: self.translate_expr(

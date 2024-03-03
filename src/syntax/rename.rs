@@ -1,4 +1,4 @@
-use super::ast::{Decl, Expr, Module, Pattern, Rule, Stmt, Type};
+use super::ast::{Decl, Expr, FuncSign, Module, Pattern, Rule, Stmt, Type};
 use crate::utils::env_map::EnvMap;
 use crate::utils::ident::Ident;
 use std::ops::DerefMut;
@@ -244,13 +244,16 @@ impl Renamer {
     fn rename_decl(&mut self, decl: &mut Decl) -> RenameResult {
         match decl {
             Decl::Func {
-                ident: _,
-                polys,
-                pars,
-                res,
-                span1: _,
+                sign:
+                    FuncSign {
+                        func: _,
+                        polys,
+                        pars,
+                        res,
+                        span: _,
+                    },
                 body,
-                span2: _,
+                span: _,
             } => {
                 self.enter_scope();
                 for poly in polys {
@@ -291,8 +294,8 @@ impl Renamer {
         self.enter_scope();
         for decl in decls.iter_mut() {
             match decl {
-                Decl::Func { ident, .. } => {
-                    self.intro_val_ident(ident);
+                Decl::Func { sign, .. } => {
+                    self.intro_val_ident(&mut sign.func);
                 }
                 Decl::Data {
                     ident,

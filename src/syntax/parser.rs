@@ -601,42 +601,45 @@ impl<'src> Parser<'src> {
         Some(Varient { cons, flds, span })
     }
 
+    fn parse_func_sign(&mut self) -> Option<FuncSign> {
+        let start = self.start_pos();
+        self.match_token(Token::Function)?;
+        let func = self.parse_lident()?;
+        let polys = self.parse_polyvars()?;
+        let pars = self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+            let ident = par.parse_lident()?;
+            par.match_token(Token::Colon)?;
+            let typ = par.parse_type()?;
+            Some((ident, typ))
+        })?;
+        let res = self
+            .option(|par| {
+                par.match_token(Token::Arrow)?;
+                par.parse_type()
+            })?
+            .unwrap_or(Type::Lit {
+                lit: LitType::TyUnit,
+            });
+        let end = self.end_pos();
+        let span = Span { start, end: end };
+        Some(FuncSign {
+            func,
+            polys,
+            pars,
+            res,
+            span,
+        })
+    }
+
     fn parse_decl(&mut self) -> Option<Decl> {
         let start = self.start_pos();
         match self.peek_token() {
             Token::Function => {
-                self.match_token(Token::Function)?;
-                let ident = self.parse_lident()?;
-                let polys = self.parse_polyvars()?;
-                let pars =
-                    self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
-                        let ident = par.parse_lident()?;
-                        par.match_token(Token::Colon)?;
-                        let typ = par.parse_type()?;
-                        Some((ident, typ))
-                    })?;
-                let res = self
-                    .option(|par| {
-                        par.match_token(Token::Arrow)?;
-                        par.parse_type()
-                    })?
-                    .unwrap_or(Type::Lit {
-                        lit: LitType::TyUnit,
-                    });
-                let end1 = self.end_pos();
-                let span1 = Span { start, end: end1 };
+                let sign = self.parse_func_sign()?;
                 let body = self.parse_block()?;
-                let end2 = self.end_pos();
-                let span2 = Span { start, end: end2 };
-                Some(Decl::Func {
-                    ident,
-                    pars,
-                    polys,
-                    res,
-                    span1,
-                    body,
-                    span2,
-                })
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Some(Decl::Func { sign, body, span })
             }
             Token::Datatype => {
                 self.match_token(Token::Datatype)?;
