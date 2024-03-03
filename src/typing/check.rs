@@ -146,8 +146,19 @@ impl TypeChecker {
                 }
                 Ok(rhs)
             }
-            Expr::NewRef { expr, span } => todo!(),
-            Expr::RefGet { expr, span } => todo!(),
+            Expr::NewRef { expr, span: _ } => {
+                let typ = self.check_expr(expr)?;
+                Ok(UnifyType::Cons(Ident::dummy(&"Ref"), vec![typ]))
+            }
+            Expr::RefGet { expr, span: _ } => {
+                let typ = self.check_expr(expr)?;
+                let cell = self.solver.new_cell();
+                self.solver.unify(
+                    &typ,
+                    &UnifyType::Cons(Ident::dummy(&"Ref"), vec![cell.clone()]),
+                )?;
+                Ok(cell)
+            }
             Expr::Stmt {
                 stmt,
                 cont,
@@ -167,7 +178,14 @@ impl TypeChecker {
                     let res_ty = self.check_expr(cont)?;
                     Ok(res_ty)
                 }
-                Stmt::Assign { lhs, rhs, span } => todo!(),
+                Stmt::Assign { lhs, rhs, span: _ } => {
+                    let lhs = self.check_expr(lhs)?;
+                    let rhs = self.check_expr(rhs)?;
+                    self.solver
+                        .unify(&lhs, &UnifyType::Cons(Ident::dummy(&"Ref"), vec![rhs]))?;
+                    let res_ty = self.check_expr(cont)?;
+                    Ok(res_ty)
+                }
                 Stmt::Do { expr, span: _ } => {
                     let ty = self.check_expr(expr)?;
                     self.solver.unify(&ty, &UnifyType::Lit(LitType::TyUnit))?;
@@ -362,11 +380,15 @@ begin
 end
 function id[T](x: T) -> T
 begin
+    let r = ref 42;
+    r := ^r;
     x
 end
 "#;
 
     let mut modl = crate::syntax::parser::parse_module(s).unwrap();
+    println!("{:#?}", &modl);
     crate::syntax::rename::rename_module(&mut modl).unwrap();
+    println!("{:#?}", &modl);
     check_module(&modl).unwrap();
 }
