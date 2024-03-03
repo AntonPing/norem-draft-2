@@ -406,6 +406,8 @@ impl Translator {
                 };
                 self.translate_expr(expr, obj, rest)
             }
+            ast::Expr::NewRef { expr, span } => todo!(),
+            ast::Expr::RefGet { expr, span } => todo!(),
             ast::Expr::Stmt { stmt, cont, .. } => {
                 //  normalize(let x = e1; e2, bind, rest) =
                 //  normalize(e1, x, normalize(e2, bind, rest))
@@ -417,6 +419,7 @@ impl Translator {
                         expr,
                         span: _,
                     } => self.translate_expr(expr, *ident, cont),
+                    ast::Stmt::Assign { lhs, rhs, span } => todo!(),
                     ast::Stmt::Do { expr, span: _ } => {
                         let ident = Ident::fresh(&"_");
                         self.translate_expr(expr, ident, cont)

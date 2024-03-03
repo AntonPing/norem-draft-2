@@ -157,6 +157,8 @@ impl Renamer {
                 }
                 Ok(())
             }
+            Expr::NewRef { expr, span } => todo!(),
+            Expr::RefGet { expr, span } => todo!(),
             Expr::Stmt {
                 stmt,
                 cont,
@@ -177,6 +179,7 @@ impl Renamer {
                     self.val_ctx.leave_scope();
                     Ok(())
                 }
+                Stmt::Assign { lhs, rhs, span } => todo!(),
                 Stmt::Do { expr, span: _ } => {
                     self.rename_expr(expr)?;
                     self.rename_expr(cont)?;

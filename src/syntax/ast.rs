@@ -104,6 +104,14 @@ pub enum Expr {
         rules: Vec<Rule>,
         span: Span,
     },
+    NewRef {
+        expr: Box<Expr>,
+        span: Span,
+    },
+    RefGet {
+        expr: Box<Expr>,
+        span: Span,
+    },
     Stmt {
         stmt: Box<Stmt>,
         cont: Box<Expr>,
@@ -117,6 +125,11 @@ pub enum Stmt {
         ident: Ident,
         typ: Option<Type>,
         expr: Expr,
+        span: Span,
+    },
+    Assign {
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
         span: Span,
     },
     Do {
@@ -201,6 +214,8 @@ impl Expr {
             Expr::App { span, .. } => span,
             Expr::Ifte { span, .. } => span,
             Expr::Case { span, .. } => span,
+            Expr::NewRef { span, .. } => span,
+            Expr::RefGet { span, .. } => span,
             Expr::Stmt { span, .. } => span,
         }
     }
@@ -210,6 +225,7 @@ impl Stmt {
     pub fn get_span(&self) -> &Span {
         match self {
             Stmt::Let { span, .. } => span,
+            Stmt::Assign { span, .. } => span,
             Stmt::Do { span, .. } => span,
         }
     }
