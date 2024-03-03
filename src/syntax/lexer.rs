@@ -29,10 +29,26 @@ pub enum Token {
     Bar,
     #[token("=")]
     Equal,
+    #[token("+")]
+    Plus,
+    #[token("-")]
+    Minus,
+    #[token("*")]
+    Star,
+    #[token("/")]
+    Slash,
+    #[token("^")]
+    Caret,
+    #[token("&&")]
+    DoubleAmpersand,
+    #[token("||")]
+    DoubleBar,
     #[token("->")]
     Arrow,
     #[token("=>")]
     FatArrow,
+    #[token(":=")]
+    Assign,
     #[token("fn")]
     Fn,
     #[token("let")]
@@ -55,6 +71,12 @@ pub enum Token {
     Begin,
     #[token("end")]
     End,
+    #[token("while")]
+    While,
+    #[token("do")]
+    Do,
+    #[token("ref")]
+    Ref,
     #[token("function")]
     Function,
     #[token("datatype")]
@@ -65,10 +87,6 @@ pub enum Token {
     Where,
     #[token("_")]
     Wild,
-    #[token("+")]
-    #[token("-")]
-    #[token("*")]
-    Binop,
     #[regex("[0-9]([0-9])*")]
     Int,
     #[regex("[0-9]([0-9])*\\.[0-9]([0-9])*")]
