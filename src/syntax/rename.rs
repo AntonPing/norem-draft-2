@@ -157,8 +157,14 @@ impl Renamer {
                 }
                 Ok(())
             }
-            Expr::NewRef { expr, span } => todo!(),
-            Expr::RefGet { expr, span } => todo!(),
+            Expr::NewRef { expr, span: _ } => {
+                self.rename_expr(expr)?;
+                Ok(())
+            }
+            Expr::RefGet { expr, span: _ } => {
+                self.rename_expr(expr)?;
+                Ok(())
+            }
             Expr::Stmt {
                 stmt,
                 cont,
@@ -179,7 +185,12 @@ impl Renamer {
                     self.val_ctx.leave_scope();
                     Ok(())
                 }
-                Stmt::Assign { lhs, rhs, span } => todo!(),
+                Stmt::Assign { lhs, rhs, span: _ } => {
+                    self.rename_expr(lhs)?;
+                    self.rename_expr(rhs)?;
+                    self.rename_expr(cont)?;
+                    Ok(())
+                }
                 Stmt::Do { expr, span: _ } => {
                     self.rename_expr(expr)?;
                     self.rename_expr(cont)?;
@@ -369,6 +380,8 @@ begin
 end
 function g(x: Int) -> Int
 begin
+    let r2 = ref 42;
+    r2 := 2;
     let r = @iadd(x, 1);
     r
 end
