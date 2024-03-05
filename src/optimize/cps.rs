@@ -87,6 +87,22 @@ impl PrimOpr {
             PrimOpr::Store => Some(3),
         }
     }
+    pub fn is_pure(&self) -> bool {
+        match self {
+            PrimOpr::IAdd => true,
+            PrimOpr::ISub => true,
+            PrimOpr::IMul => true,
+            PrimOpr::ICmpLs => true,
+            PrimOpr::ICmpEq => true,
+            PrimOpr::ICmpGr => true,
+            PrimOpr::Move => true,
+            PrimOpr::Record => true,
+            PrimOpr::Select => true,
+            PrimOpr::Alloc => false,
+            PrimOpr::Load => false,
+            PrimOpr::Store => false,
+        }
+    }
 }
 
 impl From<ast::PrimOpr> for PrimOpr {

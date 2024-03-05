@@ -226,8 +226,9 @@ impl Optimizer {
                     _ => {
                         let cont = self.visit_expr(*rest);
                         // unused primitive elimination
-                        // do purity check if we have impure primitive in the future
-                        if self.used_set.contains(&bind) {
+                        if !self.used_set.contains(&bind) && prim.is_pure() {
+                            cont
+                        } else {
                             self.used_set.remove(&bind);
                             args.iter().for_each(|arg| self.mark_val_used(arg));
                             cps::Expr::Prim {
@@ -236,8 +237,6 @@ impl Optimizer {
                                 args,
                                 rest: Box::new(cont),
                             }
-                        } else {
-                            cont
                         }
                     }
                 }
