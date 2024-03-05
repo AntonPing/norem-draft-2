@@ -65,6 +65,9 @@ pub enum PrimOpr {
     Move,
     Record,
     Select,
+    Alloc,
+    Load,
+    Store,
 }
 
 impl PrimOpr {
@@ -79,6 +82,9 @@ impl PrimOpr {
             PrimOpr::Move => Some(1),
             PrimOpr::Record => None,
             PrimOpr::Select => Some(2),
+            PrimOpr::Alloc => Some(1),
+            PrimOpr::Load => Some(2),
+            PrimOpr::Store => Some(3),
         }
     }
 }
