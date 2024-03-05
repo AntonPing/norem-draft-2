@@ -135,6 +135,16 @@ impl Codegen {
                 args,
                 rest,
             } => {
+                match (prim, &args[..]) {
+                    (PrimOpr::Alloc, [Atom::Int(len)]) => {
+                        let ret = self.new_reg();
+                        self.code.push(Instr::Alloc(ret, *len as usize));
+                        self.reg_map.insert(*bind, ret);
+                        self.visit_expr(rest, cont);
+                        return;
+                    }
+                    _ => {}
+                }
                 let args: Vec<Reg> = args.iter().map(|arg| self.visit_atom(arg)).collect();
                 let ret = self.new_reg();
                 match (prim, &args[..]) {
@@ -168,6 +178,12 @@ impl Codegen {
                             let idx = self.visit_atom(&Atom::Int(i as i64));
                             self.code.push(Instr::Store(ret, idx, *arg));
                         }
+                    }
+                    (PrimOpr::Load, [arg1, arg2]) => {
+                        self.code.push(Instr::Load(ret, *arg1, *arg2));
+                    }
+                    (PrimOpr::Store, [arg1, arg2, arg3]) => {
+                        self.code.push(Instr::Store(*arg1, *arg2, *arg3));
                     }
                     _ => unreachable!(),
                 }
