@@ -406,11 +406,52 @@ impl Translator {
                 };
                 self.translate_expr(expr, obj, rest)
             }
-            ast::Expr::NewRef { expr, span } => todo!(),
-            ast::Expr::RefGet { expr, span } => todo!(),
-            ast::Expr::Stmt { stmt, cont, .. } => {
-                //  normalize(let x = e1; e2, bind, rest) =
-                //  normalize(e1, x, normalize(e2, bind, rest))
+            ast::Expr::NewRef { expr, span: _ } => {
+                //  normalize(ref e, bind, rest) =
+                //  normalize(e, x,
+                //      let bind = alloc 1;
+                //      let _ = store bind 0 x;
+                //      rest)
+                let x = Ident::fresh(&"x");
+                let wild = Ident::fresh(&"_");
+                self.translate_expr(
+                    expr,
+                    x,
+                    cps::Expr::Prim {
+                        bind,
+                        prim: PrimOpr::Alloc,
+                        args: vec![Atom::Int(1)],
+                        rest: Box::new(cps::Expr::Prim {
+                            bind: wild,
+                            prim: PrimOpr::Store,
+                            args: vec![Atom::Var(bind), Atom::Int(0), Atom::Var(x)],
+                            rest: Box::new(rest),
+                        }),
+                    },
+                )
+            }
+            ast::Expr::RefGet { expr, span: _ } => {
+                //  normalize(^e, bind, rest) =
+                //  normalize(e, r,
+                //      let bind = load r 0;
+                //      rest)
+                let r = Ident::fresh(&"r");
+                self.translate_expr(
+                    expr,
+                    r,
+                    cps::Expr::Prim {
+                        bind,
+                        prim: PrimOpr::Load,
+                        args: vec![Atom::Var(r), Atom::Int(0)],
+                        rest: Box::new(rest),
+                    },
+                )
+            }
+            ast::Expr::Stmt {
+                stmt,
+                cont,
+                span: _,
+            } => {
                 let cont = self.translate_expr(cont, bind, rest);
                 match stmt.deref() {
                     ast::Stmt::Let {
@@ -418,11 +459,34 @@ impl Translator {
                         typ: _,
                         expr,
                         span: _,
-                    } => self.translate_expr(expr, *ident, cont),
-                    ast::Stmt::Assign { lhs, rhs, span } => todo!(),
+                    } => {
+                        //  normalize(let x = e1; e2, bind, rest) =
+                        //  normalize(e1, x, normalize(e2, bind, rest))
+                        self.translate_expr(expr, *ident, cont)
+                    }
+                    ast::Stmt::Assign { lhs, rhs, span: _ } => {
+                        //  normalize(lhs := rhs; e, bind, rest) =
+                        //  normalize(lhs, r,
+                        //      normalize(rhs, v,
+                        //          let _ = store r 0 v;
+                        //          normalize(e, bind, rest)))
+                        let r = Ident::fresh(&"r");
+                        let v = Ident::fresh(&"v");
+                        let wild = Ident::fresh(&"_");
+                        let inner = cps::Expr::Prim {
+                            bind: wild,
+                            prim: PrimOpr::Store,
+                            args: vec![Atom::Var(r), Atom::Int(0), Atom::Var(v)],
+                            rest: Box::new(cont),
+                        };
+                        let temp = self.translate_expr(rhs, v, inner);
+                        self.translate_expr(lhs, r, temp)
+                    }
                     ast::Stmt::Do { expr, span: _ } => {
-                        let ident = Ident::fresh(&"_");
-                        self.translate_expr(expr, ident, cont)
+                        //  normalize(e1; e2, bind, rest) =
+                        //  normalize(e1, _, normalize(e2, bind, rest))
+                        let wild = Ident::fresh(&"_");
+                        self.translate_expr(expr, wild, cont)
                     }
                 }
             }
