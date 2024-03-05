@@ -340,7 +340,7 @@ impl<'src> Parser<'src> {
                 let span = Span { start, end };
                 Some(Expr::RefGet { expr, span })
             }
-            Token::Begin => self.parse_block(),
+            Token::Begin => self.parse_block(Token::Begin),
             Token::LParen => {
                 let res = self.surround(Token::LParen, Token::RParen, |par| par.parse_expr())?;
                 if self.peek_token() == Token::LParen {
@@ -378,6 +378,15 @@ impl<'src> Parser<'src> {
                     expr,
                     span,
                 })
+            }
+            Token::While => {
+                self.match_token(Token::While);
+                let cond = self.parse_expr()?;
+                let body = self.parse_block(Token::Do)?;
+                self.match_token(Token::End);
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Some(Stmt::While { cond, body, span })
             }
             _tok => {
                 let expr = self.parse_expr()?;
@@ -503,8 +512,8 @@ impl<'src> Parser<'src> {
         }
     }
 
-    fn parse_block(&mut self) -> Option<Expr> {
-        self.match_token(Token::Begin)?;
+    fn parse_block(&mut self, start: Token) -> Option<Expr> {
+        self.match_token(start)?;
         let mut vec: Vec<Stmt> = Vec::new();
         loop {
             if self.peek_token() == Token::End {
@@ -662,7 +671,7 @@ impl<'src> Parser<'src> {
         match self.peek_token() {
             Token::Function => {
                 let sign = self.parse_func_sign()?;
-                let body = self.parse_block()?;
+                let body = self.parse_block(Token::Begin)?;
                 let end = self.end_pos();
                 let span = Span { start, end };
                 Some(Decl::Func { sign, body, span })
@@ -767,7 +776,9 @@ end
 function id[T](x: T) -> T
 begin
     let r = ref 42;
-    r := x;
+    while true do
+        r := x;
+    end;
     ^r
 end
 "#;
