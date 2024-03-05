@@ -482,7 +482,73 @@ impl Translator {
                         let temp = self.translate_expr(rhs, v, inner);
                         self.translate_expr(lhs, r, temp)
                     }
-                    ast::Stmt::While { cond, body, span } => todo!(),
+                    ast::Stmt::While {
+                        cond,
+                        body,
+                        span: _,
+                    } => {
+                        //  normalize(while cond do e1 end; e2, bind, rest) =
+                        //  decls
+                        //      cont k1():
+                        //          normalize(cond, p, if p then jump k2() else jump k3())
+                        //      cont k2():
+                        //          normalize(body, _, jump k1())
+                        //      cont k3():
+                        //          normalize(e2, bind, rest)
+                        //  in
+                        //      jump k1()
+                        //  end
+                        let k1 = Ident::fresh(&"k1");
+                        let k2 = Ident::fresh(&"k2");
+                        let k3 = Ident::fresh(&"k3");
+                        let wild = Ident::fresh(&"_");
+                        let p = Ident::fresh(&"p");
+                        let cont1 = ContDecl {
+                            cont: k1,
+                            pars: Vec::new(),
+                            body: self.translate_expr(
+                                cond,
+                                p,
+                                cps::Expr::Ifte {
+                                    cond: cps::IfCond::BTrue,
+                                    args: vec![Atom::Var(p)],
+                                    trbr: Box::new(cps::Expr::Jump {
+                                        cont: k2,
+                                        args: Vec::new(),
+                                    }),
+                                    flbr: Box::new(cps::Expr::Jump {
+                                        cont: k3,
+                                        args: Vec::new(),
+                                    }),
+                                },
+                            ),
+                        };
+                        let cont2 = ContDecl {
+                            cont: k2,
+                            pars: Vec::new(),
+                            body: self.translate_expr(
+                                body,
+                                wild,
+                                cps::Expr::Jump {
+                                    cont: k1,
+                                    args: Vec::new(),
+                                },
+                            ),
+                        };
+                        let cont3 = ContDecl {
+                            cont: k3,
+                            pars: Vec::new(),
+                            body: cont,
+                        };
+                        cps::Expr::Decls {
+                            funcs: Vec::new(),
+                            conts: vec![cont1, cont2, cont3],
+                            body: Box::new(cps::Expr::Jump {
+                                cont: k1,
+                                args: Vec::new(),
+                            }),
+                        }
+                    }
                     ast::Stmt::Do { expr, span: _ } => {
                         //  normalize(e1; e2, bind, rest) =
                         //  normalize(e1, _, normalize(e2, bind, rest))
