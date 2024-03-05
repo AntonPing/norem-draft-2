@@ -1,4 +1,4 @@
-module Fibonacci where
+module RecFib where
 function fib(n: Int) -> Int
 begin
     if @icmpls(n, 1) then
