@@ -191,6 +191,7 @@ impl Renamer {
                     self.rename_expr(cont)?;
                     Ok(())
                 }
+                Stmt::While { cond, body, span } => todo!(),
                 Stmt::Do { expr, span: _ } => {
                     self.rename_expr(expr)?;
                     self.rename_expr(cont)?;

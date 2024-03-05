@@ -482,6 +482,7 @@ impl Translator {
                         let temp = self.translate_expr(rhs, v, inner);
                         self.translate_expr(lhs, r, temp)
                     }
+                    ast::Stmt::While { cond, body, span } => todo!(),
                     ast::Stmt::Do { expr, span: _ } => {
                         //  normalize(e1; e2, bind, rest) =
                         //  normalize(e1, _, normalize(e2, bind, rest))

@@ -186,6 +186,7 @@ impl TypeChecker {
                     let res_ty = self.check_expr(cont)?;
                     Ok(res_ty)
                 }
+                Stmt::While { cond, body, span } => todo!(),
                 Stmt::Do { expr, span: _ } => {
                     let ty = self.check_expr(expr)?;
                     self.solver.unify(&ty, &UnifyType::Lit(LitType::TyUnit))?;
