@@ -17,8 +17,8 @@ pub fn compile_file(path: &String) -> Value {
     let modl = optimize::closure::ClosConv::run(modl);
     let modl = optimize::optimize::Optimizer::run(modl);
 
-    let mut modl = compile::codegen::Codegen::run(&modl);
-    compile::reg_alloc::RegAlloc::run(&mut modl);
+    let modl = compile::codegen::Codegen::run(&modl);
+    // compile::reg_alloc::RegAlloc::run(&mut modl);
     let (code, map) = compile::linking::Linker::run(&modl);
     let (_, entry) = map.iter().find(|(k, _)| k.as_str() == "main").unwrap();
     let mut evl = compile::evaluate::Evaluator::new(code, *entry);
