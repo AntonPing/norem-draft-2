@@ -128,8 +128,8 @@ pub enum Stmt {
         span: Span,
     },
     Assign {
-        lhs: Box<Expr>,
-        rhs: Box<Expr>,
+        lhs: Expr,
+        rhs: Expr,
         span: Span,
     },
     Do {

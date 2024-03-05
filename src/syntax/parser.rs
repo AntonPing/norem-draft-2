@@ -387,8 +387,8 @@ impl<'src> Parser<'src> {
                     let end = self.end_pos();
                     let span = Span { start, end };
                     Some(Stmt::Assign {
-                        lhs: Box::new(expr),
-                        rhs: Box::new(expr2),
+                        lhs: expr,
+                        rhs: expr2,
                         span,
                     })
                 } else {
