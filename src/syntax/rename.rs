@@ -169,35 +169,42 @@ impl Renamer {
                 stmt,
                 cont,
                 span: _,
-            } => match stmt.deref_mut() {
-                Stmt::Let {
-                    ident,
-                    typ: _,
-                    expr,
-                    span: _,
-                } => {
-                    self.rename_expr(expr)?;
-                    self.val_ctx.enter_scope();
-                    let new = ident.uniquify();
-                    self.val_ctx.insert(*ident, new);
-                    *ident = new;
-                    self.rename_expr(cont)?;
-                    self.val_ctx.leave_scope();
-                    Ok(())
+            } => {
+                match stmt.deref_mut() {
+                    Stmt::Let {
+                        ident,
+                        typ: _,
+                        expr,
+                        span: _,
+                    } => {
+                        self.rename_expr(expr)?;
+                        self.val_ctx.enter_scope();
+                        let new = ident.uniquify();
+                        self.val_ctx.insert(*ident, new);
+                        *ident = new;
+                        self.rename_expr(cont)?;
+                        self.val_ctx.leave_scope();
+                        return Ok(());
+                    }
+                    Stmt::Assign { lhs, rhs, span: _ } => {
+                        self.rename_expr(lhs)?;
+                        self.rename_expr(rhs)?;
+                    }
+                    Stmt::While {
+                        cond,
+                        body,
+                        span: _,
+                    } => {
+                        self.rename_expr(cond)?;
+                        self.rename_expr(body)?;
+                    }
+                    Stmt::Do { expr, span: _ } => {
+                        self.rename_expr(expr)?;
+                    }
                 }
-                Stmt::Assign { lhs, rhs, span: _ } => {
-                    self.rename_expr(lhs)?;
-                    self.rename_expr(rhs)?;
-                    self.rename_expr(cont)?;
-                    Ok(())
-                }
-                Stmt::While { cond, body, span } => todo!(),
-                Stmt::Do { expr, span: _ } => {
-                    self.rename_expr(expr)?;
-                    self.rename_expr(cont)?;
-                    Ok(())
-                }
-            },
+                self.rename_expr(cont)?;
+                Ok(())
+            }
         }
     }
 
