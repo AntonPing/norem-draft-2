@@ -2,24 +2,35 @@
 
 use super::lexer::{self, Span, Token, TokenSpan};
 use crate::syntax::ast::*;
+use crate::typing::diagnostic::Diagnostic;
 use crate::utils::ident::Ident;
 use crate::utils::intern::InternStr;
 
-pub struct Parser<'src> {
+pub struct Parser<'src, 'diag> {
     source: &'src str,
     tokens: Vec<TokenSpan>,
     cursor: usize,
+    diags: &'diag mut Vec<Diagnostic>,
 }
 
-type ParseFunc<'src, T> = fn(&mut Parser<'src>) -> Option<T>;
+#[derive(Debug, Clone)]
+enum ParseError {
+    LexerError(Span),
+    FailedToMatch(Token, Token, Span),
+    FailedToParse(&'static str, Token, Span),
+}
+type ParseResult<T> = Result<T, ParseError>;
 
-impl<'src> Parser<'src> {
-    pub fn new(input: &'src str) -> Parser<'src> {
-        let tokens = lexer::tokenize(input);
+type ParseFunc<'src, 'diag, T> = fn(&mut Parser<'src, 'diag>) -> ParseResult<T>;
+
+impl<'src, 'diag> Parser<'src, 'diag> {
+    pub fn new(src: &'src str, diags: &'diag mut Vec<Diagnostic>) -> Parser<'src, 'diag> {
+        let tokens = lexer::tokenize(src);
         Parser {
-            source: input,
+            source: src,
             tokens,
             cursor: 0,
+            diags,
         }
     }
 
@@ -64,169 +75,227 @@ impl<'src> Parser<'src> {
         self.tokens[self.cursor - 1].span.end
     }
 
-    fn next_token(&mut self) -> &TokenSpan {
+    fn emit(&mut self, err: &ParseError) {
+        match err {
+            ParseError::LexerError(span) => self.diags.push(
+                Diagnostic::error("cannot scan next token!")
+                    .line_span(span.clone(), "here is the bad token"),
+            ),
+            ParseError::FailedToMatch(expect, found, span) => {
+                self.diags
+                    .push(Diagnostic::error("cannot match token!").line_span(
+                        span.clone(),
+                        format!("expect token {expect:?}, found token {found:?}"),
+                    ))
+            }
+            ParseError::FailedToParse(name, found, span) => self.diags.push(
+                Diagnostic::error(format!("cannot parse {name}!"))
+                    .line_span(span.clone(), format!("found token {found:?}")),
+            ),
+        }
+    }
+
+    fn next_token(&mut self) -> ParseResult<&TokenSpan> {
         let tok = &self.tokens[self.cursor];
-        if self.cursor < self.tokens.len() - 1 {
-            self.cursor += 1;
-        }
-        tok
-    }
-
-    fn match_token(&mut self, tok: Token) -> Option<()> {
-        if self.peek_token() == tok {
-            self.next_token();
-            Some(())
+        if tok.token == Token::TokError {
+            Err(ParseError::LexerError(self.peek_span().clone()))
         } else {
-            None
+            if self.cursor < self.tokens.len() - 1 {
+                self.cursor += 1;
+            }
+            Ok(tok)
         }
     }
 
-    fn option<T, F: Fn(&mut Parser) -> Option<T>>(&mut self, func: F) -> Option<Option<T>> {
+    fn match_token(&mut self, tok: Token) -> ParseResult<()> {
+        if self.peek_token() == tok {
+            self.next_token()?;
+            Ok(())
+        } else {
+            Err(ParseError::FailedToMatch(
+                tok,
+                self.peek_token(),
+                self.peek_span().clone(),
+            ))
+        }
+    }
+
+    fn option<T, F>(&mut self, func: F) -> ParseResult<Option<T>>
+    where
+        F: Fn(&mut Parser) -> ParseResult<T>,
+    {
         let last = self.cursor;
         match func(self) {
-            Some(res) => Some(Some(res)),
-            None => {
+            Ok(res) => Ok(Some(res)),
+            Err(err) => {
                 // if it failed without consuming any token
                 if self.cursor == last {
-                    Some(None) // return None
+                    Ok(None) // return Err(ParseError::FailedToParse((), self.peek_token(), self.peek_span().clone()))
                 } else {
-                    None // otherwise fail
+                    Err(err) // otherwise fail
                 }
             }
         }
     }
 
-    fn surround<T, F: Fn(&mut Parser) -> Option<T>>(
-        &mut self,
-        left: Token,
-        right: Token,
-        func: F,
-    ) -> Option<T> {
+    fn surround<T, F>(&mut self, left: Token, right: Token, func: F) -> ParseResult<T>
+    where
+        F: Fn(&mut Parser) -> ParseResult<T>,
+    {
         self.match_token(left)?;
         let res = func(self)?;
         self.match_token(right)?;
-        Some(res)
+        Ok(res)
     }
 
-    fn delimited_list<T, F: Fn(&mut Parser) -> Option<T>>(
+    fn delimited_list<T, F>(
         &mut self,
         left: Token,
         delim: Token,
         right: Token,
         func: F,
-    ) -> Option<Vec<T>> {
+    ) -> ParseResult<Vec<T>>
+    where
+        F: Fn(&mut Parser) -> ParseResult<T>,
+    {
         let mut vec: Vec<T> = Vec::new();
         self.match_token(left)?;
+        // allow leading delimiter
         if self.peek_token() == delim {
-            self.next_token();
+            self.next_token()?;
         }
+        // allow empty list
         if self.peek_token() == right {
-            self.next_token();
-            return Some(vec);
+            self.next_token()?;
+            return Ok(vec);
         }
         vec.push(func(self)?);
         while self.peek_token() == delim {
-            self.next_token();
+            self.next_token()?;
             vec.push(func(self)?);
         }
         // allow trailing delimiter
         if self.peek_token() == delim {
-            self.next_token();
+            self.next_token()?;
         }
         self.match_token(right)?;
-        Some(vec)
+        Ok(vec)
     }
 
-    fn parse_lit_val(&mut self) -> Option<LitVal> {
+    fn parse_lit_val(&mut self) -> ParseResult<LitVal> {
         match self.peek_token() {
             Token::Int => {
                 let x = self.peek_slice().parse::<i64>().unwrap();
-                self.next_token();
-                Some(LitVal::Int(x))
+                self.next_token()?;
+                Ok(LitVal::Int(x))
             }
             Token::Float => {
                 let x = self.peek_slice().parse::<f64>().unwrap();
-                self.next_token();
-                Some(LitVal::Float(x))
+                self.next_token()?;
+                Ok(LitVal::Float(x))
             }
             Token::Bool => {
                 let x = self.peek_slice().parse::<bool>().unwrap();
-                self.next_token();
-                Some(LitVal::Bool(x))
+                self.next_token()?;
+                Ok(LitVal::Bool(x))
             }
             Token::Char => {
                 let x = self.peek_slice().parse::<char>().unwrap();
-                self.next_token();
-                Some(LitVal::Char(x))
+                self.next_token()?;
+                Ok(LitVal::Char(x))
             }
-            _tok => None,
+            _tok => Err(ParseError::FailedToParse(
+                &"literal",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
         }
     }
 
-    fn parse_llabel(&mut self) -> Option<InternStr> {
+    fn parse_llabel(&mut self) -> ParseResult<InternStr> {
         match self.peek_token() {
             Token::LowerIdent => {
                 let res = InternStr::new(&self.peek_slice());
-                self.next_token();
-                Some(res)
+                self.next_token()?;
+                Ok(res)
             }
-            _tok => None,
+            _tok => Err(ParseError::FailedToParse(
+                &"lowercase label",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
         }
     }
 
-    fn parse_ulabel(&mut self) -> Option<InternStr> {
+    fn parse_ulabel(&mut self) -> ParseResult<InternStr> {
         match self.peek_token() {
             Token::UpperIdent => {
                 let res = InternStr::new(&self.peek_slice());
-                self.next_token();
-                Some(res)
+                self.next_token()?;
+                Ok(res)
             }
-            _tok => None,
+            _tok => Err(ParseError::FailedToParse(
+                &"uppercase label",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
         }
     }
 
-    fn parse_lident(&mut self) -> Option<Ident> {
+    fn parse_lident(&mut self) -> ParseResult<Ident> {
         match self.peek_token() {
             Token::LowerIdent => {
                 let res = Ident::dummy(&self.peek_slice());
-                self.next_token();
-                Some(res)
+                self.next_token()?;
+                Ok(res)
             }
-            _tok => None,
+            _tok => Err(ParseError::FailedToParse(
+                "lowercase identifier",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
         }
     }
 
-    fn parse_uident(&mut self) -> Option<Ident> {
+    fn parse_uident(&mut self) -> ParseResult<Ident> {
         match self.peek_token() {
             Token::UpperIdent => {
                 let res = Ident::dummy(&self.peek_slice());
-                self.next_token();
-                Some(res)
+                self.next_token()?;
+                Ok(res)
             }
-            _tok => None,
+            _tok => Err(ParseError::FailedToParse(
+                "uppercase identifier",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
         }
     }
 
-    fn parse_prim_opr(&mut self) -> Option<PrimOpr> {
+    fn parse_prim_opr(&mut self) -> ParseResult<PrimOpr> {
         match self.peek_token() {
             Token::PrimOpr => {
                 let s = self.peek_slice();
-                self.next_token();
+                self.next_token()?;
                 match s {
-                    "@iadd" => Some(PrimOpr::IAdd),
-                    "@isub" => Some(PrimOpr::ISub),
-                    "@imul" => Some(PrimOpr::IMul),
-                    "@icmpls" => Some(PrimOpr::ICmpLs),
-                    "@icmpeq" => Some(PrimOpr::ICmpEq),
-                    "@icmpgr" => Some(PrimOpr::ICmpGr),
-                    _s => None,
+                    "@iadd" => Ok(PrimOpr::IAdd),
+                    "@isub" => Ok(PrimOpr::ISub),
+                    "@imul" => Ok(PrimOpr::IMul),
+                    "@icmpls" => Ok(PrimOpr::ICmpLs),
+                    "@icmpeq" => Ok(PrimOpr::ICmpEq),
+                    "@icmpgr" => Ok(PrimOpr::ICmpGr),
+                    _ => unreachable!(),
                 }
             }
-            _tok => None,
+            _tok => Err(ParseError::FailedToParse(
+                "primitive operator",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
         }
     }
 
-    fn parse_polyvars(&mut self) -> Option<Vec<Ident>> {
+    fn parse_polyvars(&mut self) -> ParseResult<Vec<Ident>> {
         self.option(|par| {
             par.delimited_list(Token::LBracket, Token::Comma, Token::RBracket, |par| {
                 par.parse_uident()
@@ -235,26 +304,26 @@ impl<'src> Parser<'src> {
         .map(|res| res.unwrap_or(Vec::new()))
     }
 
-    fn parse_parameters(&mut self) -> Option<Vec<Ident>> {
+    fn parse_parameters(&mut self) -> ParseResult<Vec<Ident>> {
         self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
             par.parse_lident()
         })
     }
 
-    fn parse_expr_args(&mut self) -> Option<Vec<Expr>> {
+    fn parse_expr_args(&mut self) -> ParseResult<Vec<Expr>> {
         self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
             par.parse_expr()
         })
     }
 
-    fn parse_expr(&mut self) -> Option<Expr> {
+    fn parse_expr(&mut self) -> ParseResult<Expr> {
         let start = self.start_pos();
         match self.peek_token() {
             Token::Int | Token::Float | Token::Bool | Token::Char => {
                 let lit = self.parse_lit_val()?;
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Some(Expr::Lit { lit, span })
+                Ok(Expr::Lit { lit, span })
             }
             Token::LowerIdent => {
                 let ident = self.parse_lident()?;
@@ -267,9 +336,9 @@ impl<'src> Parser<'src> {
                     let args = self.parse_expr_args()?;
                     let end = self.end_pos();
                     let span = Span { start, end };
-                    Some(Expr::App { func, args, span })
+                    Ok(Expr::App { func, args, span })
                 } else {
-                    Some(var)
+                    Ok(var)
                 }
             }
             Token::UpperIdent => {
@@ -283,14 +352,14 @@ impl<'src> Parser<'src> {
                 )?;
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Some(Expr::Cons { cons, flds, span })
+                Ok(Expr::Cons { cons, flds, span })
             }
             Token::PrimOpr => {
                 let prim = self.parse_prim_opr()?;
                 let args = self.parse_expr_args()?;
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Some(Expr::Prim { prim, args, span })
+                Ok(Expr::Prim { prim, args, span })
             }
             Token::Fn => {
                 self.match_token(Token::Fn)?;
@@ -299,7 +368,7 @@ impl<'src> Parser<'src> {
                 let body = Box::new(self.parse_expr()?);
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Some(Expr::Func { pars, body, span })
+                Ok(Expr::Func { pars, body, span })
             }
             Token::If => {
                 self.match_token(Token::If)?;
@@ -310,7 +379,7 @@ impl<'src> Parser<'src> {
                 let flbr = Box::new(self.parse_expr()?);
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Some(Expr::Ifte {
+                Ok(Expr::Ifte {
                     cond,
                     trbr,
                     flbr,
@@ -324,21 +393,21 @@ impl<'src> Parser<'src> {
                     .delimited_list(Token::With, Token::Bar, Token::End, |par| par.parse_rule())?;
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Some(Expr::Case { expr, rules, span })
+                Ok(Expr::Case { expr, rules, span })
             }
             Token::Ref => {
                 self.match_token(Token::Ref)?;
                 let expr = Box::new(self.parse_expr()?);
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Some(Expr::NewRef { expr, span })
+                Ok(Expr::NewRef { expr, span })
             }
             Token::Caret => {
                 self.match_token(Token::Caret)?;
                 let expr = Box::new(self.parse_expr()?);
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Some(Expr::RefGet { expr, span })
+                Ok(Expr::RefGet { expr, span })
             }
             Token::Begin => self.parse_block(Token::Begin),
             Token::LParen => {
@@ -349,30 +418,34 @@ impl<'src> Parser<'src> {
                     let args = self.parse_expr_args()?;
                     let end = self.end_pos();
                     let span = Span { start, end };
-                    Some(Expr::App { func, args, span })
+                    Ok(Expr::App { func, args, span })
                 } else {
-                    Some(res)
+                    Ok(res)
                 }
             }
-            _tok => None,
+            _tok => Err(ParseError::FailedToParse(
+                "expression",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
         }
     }
 
-    fn parse_stmt(&mut self) -> Option<Stmt> {
+    fn parse_stmt(&mut self) -> ParseResult<Stmt> {
         let start = self.start_pos();
         match self.peek_token() {
             Token::Let => {
-                self.match_token(Token::Let);
+                self.match_token(Token::Let)?;
                 let ident = self.parse_lident()?;
                 let typ: Option<Type> = self.option(|par| {
                     par.match_token(Token::Colon)?;
                     par.parse_type()
                 })?;
-                self.match_token(Token::Equal);
+                self.match_token(Token::Equal)?;
                 let expr = self.parse_expr()?;
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Some(Stmt::Let {
+                Ok(Stmt::Let {
                     ident,
                     typ,
                     expr,
@@ -380,13 +453,12 @@ impl<'src> Parser<'src> {
                 })
             }
             Token::While => {
-                self.match_token(Token::While);
+                self.match_token(Token::While)?;
                 let cond = self.parse_expr()?;
                 let body = self.parse_block(Token::Do)?;
-                self.match_token(Token::End);
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Some(Stmt::While { cond, body, span })
+                Ok(Stmt::While { cond, body, span })
             }
             _tok => {
                 let expr = self.parse_expr()?;
@@ -395,7 +467,7 @@ impl<'src> Parser<'src> {
                     let expr2 = self.parse_expr()?;
                     let end = self.end_pos();
                     let span = Span { start, end };
-                    Some(Stmt::Assign {
+                    Ok(Stmt::Assign {
                         lhs: expr,
                         rhs: expr2,
                         span,
@@ -403,17 +475,20 @@ impl<'src> Parser<'src> {
                 } else {
                     let end = self.end_pos();
                     let span = Span { start, end };
-                    Some(Stmt::Do { expr, span })
+                    Ok(Stmt::Do { expr, span })
                 }
             }
         }
     }
 
-    fn parse_labeled_list<T, F: Fn(&mut Parser) -> Option<T>>(
+    fn parse_labeled_list<T, F>(
         &mut self,
         func: F,
         default: Option<fn(InternStr, Span) -> T>,
-    ) -> Option<Vec<Labeled<T>>> {
+    ) -> ParseResult<Vec<Labeled<T>>>
+    where
+        F: Fn(&mut Parser) -> ParseResult<T>,
+    {
         match self.peek_token() {
             Token::LBrace => {
                 // Cons { fld1: Typ1, ..., fldn: Typn }
@@ -426,19 +501,23 @@ impl<'src> Parser<'src> {
                             let data = func(par)?;
                             let end = par.end_pos();
                             let span = Span { start, end };
-                            Some(Labeled { label, data, span })
+                            Ok(Labeled { label, data, span })
                         } else {
                             if let Some(dft) = default {
                                 let end = par.end_pos();
                                 let span = Span { start, end };
                                 let data = dft(label, span.clone());
-                                Some(Labeled { label, data, span })
+                                Ok(Labeled { label, data, span })
                             } else {
-                                None
+                                Err(ParseError::FailedToParse(
+                                    "labeled list",
+                                    par.peek_token(),
+                                    par.peek_span().clone(),
+                                ))
                             }
                         }
                     })?;
-                Some(res)
+                Ok(res)
             }
             Token::LParen => {
                 // Cons(fld1, ..., fldn)
@@ -448,7 +527,7 @@ impl<'src> Parser<'src> {
                         let expr = func(par)?;
                         let end = par.end_pos();
                         let span = Span { start, end };
-                        Some((expr, span))
+                        Ok((expr, span))
                     })?;
                 let res = res
                     .into_iter()
@@ -459,36 +538,36 @@ impl<'src> Parser<'src> {
                         span,
                     })
                     .collect();
-                Some(res)
+                Ok(res)
             }
-            _tok => Some(Vec::new()),
+            _tok => Ok(Vec::new()),
         }
     }
 
-    fn parse_rule(&mut self) -> Option<Rule> {
+    fn parse_rule(&mut self) -> ParseResult<Rule> {
         let start = self.start_pos();
         let patn = self.parse_pattern()?;
         self.match_token(Token::FatArrow)?;
         let body = self.parse_expr()?;
         let end = self.end_pos();
         let span = Span { start, end };
-        Some(Rule { patn, body, span })
+        Ok(Rule { patn, body, span })
     }
 
-    fn parse_pattern(&mut self) -> Option<Pattern> {
+    fn parse_pattern(&mut self) -> ParseResult<Pattern> {
         let start = self.start_pos();
         match self.peek_token() {
             Token::Int | Token::Float | Token::Bool | Token::Char => {
                 let lit = self.parse_lit_val()?;
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Some(Pattern::Lit { lit, span })
+                Ok(Pattern::Lit { lit, span })
             }
             Token::LowerIdent => {
                 let ident = self.parse_lident()?;
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Some(Pattern::Var { ident, span })
+                Ok(Pattern::Var { ident, span })
             }
             Token::UpperIdent => {
                 let cons = self.parse_uident()?;
@@ -501,23 +580,27 @@ impl<'src> Parser<'src> {
                 )?;
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Some(Pattern::Cons { cons, patns, span })
+                Ok(Pattern::Cons { cons, patns, span })
             }
             Token::Wild => {
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Some(Pattern::Wild { span })
+                Ok(Pattern::Wild { span })
             }
-            _tok => None,
+            _tok => Err(ParseError::FailedToParse(
+                "pattern",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
         }
     }
 
-    fn parse_block(&mut self, start: Token) -> Option<Expr> {
+    fn parse_block(&mut self, start: Token) -> ParseResult<Expr> {
         self.match_token(start)?;
         let mut vec: Vec<Stmt> = Vec::new();
         loop {
             if self.peek_token() == Token::End {
-                self.match_token(Token::End);
+                self.match_token(Token::End)?;
                 let end = self.end_pos();
                 let res = vec.into_iter().rev().fold(
                     Expr::Lit {
@@ -536,13 +619,13 @@ impl<'src> Parser<'src> {
                         }
                     },
                 );
-                return Some(res);
+                return Ok(res);
             } else {
                 let stmt = self.parse_stmt()?;
                 match (stmt, self.peek_token()) {
                     (stmt, Token::Semi) => {
-                        vec.push(stmt);
                         self.match_token(Token::Semi)?;
+                        vec.push(stmt);
                         continue;
                     }
                     (Stmt::Do { expr, span: _ }, Token::End) => {
@@ -558,37 +641,43 @@ impl<'src> Parser<'src> {
                                 span,
                             }
                         });
-                        return Some(res);
+                        return Ok(res);
                     }
-                    _tok => return None,
+                    (_stmt, _tok) => {
+                        return Err(ParseError::FailedToMatch(
+                            Token::Semi,
+                            self.peek_token(),
+                            self.peek_span().clone(),
+                        ))
+                    }
                 }
             }
         }
     }
 
-    fn parse_type(&mut self) -> Option<Type> {
+    fn parse_type(&mut self) -> ParseResult<Type> {
         match self.peek_token() {
             Token::TyInt => {
                 self.match_token(Token::TyInt)?;
-                Some(Type::Lit {
+                Ok(Type::Lit {
                     lit: LitType::TyInt,
                 })
             }
             Token::TyFloat => {
                 self.match_token(Token::TyFloat)?;
-                Some(Type::Lit {
+                Ok(Type::Lit {
                     lit: LitType::TyFloat,
                 })
             }
             Token::TyBool => {
                 self.match_token(Token::TyBool)?;
-                Some(Type::Lit {
+                Ok(Type::Lit {
                     lit: LitType::TyBool,
                 })
             }
             Token::TyChar => {
                 self.match_token(Token::TyChar)?;
-                Some(Type::Lit {
+                Ok(Type::Lit {
                     lit: LitType::TyChar,
                 })
             }
@@ -601,9 +690,9 @@ impl<'src> Parser<'src> {
                         Token::RBracket,
                         |par| par.parse_type(),
                     )?;
-                    Some(Type::Cons { cons: ident, args })
+                    Ok(Type::Cons { cons: ident, args })
                 } else {
-                    Some(Type::Var { ident })
+                    Ok(Type::Var { ident })
                 }
             }
             Token::Fn => {
@@ -615,28 +704,32 @@ impl<'src> Parser<'src> {
                 if self.peek_token() == Token::Arrow {
                     self.match_token(Token::Arrow)?;
                     let res = Box::new(self.parse_type()?);
-                    Some(Type::Func { pars, res })
+                    Ok(Type::Func { pars, res })
                 } else {
                     let res = Box::new(Type::Lit {
                         lit: LitType::TyUnit,
                     });
-                    Some(Type::Func { pars, res })
+                    Ok(Type::Func { pars, res })
                 }
             }
-            _tok => None,
+            _tok => Err(ParseError::FailedToParse(
+                "type",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
         }
     }
 
-    fn parse_varient(&mut self) -> Option<Varient> {
+    fn parse_varient(&mut self) -> ParseResult<Varient> {
         let start = self.start_pos();
         let cons = self.parse_uident()?;
         let flds = self.parse_labeled_list(|par| par.parse_type(), None)?;
         let end = self.end_pos();
         let span = Span { start, end };
-        Some(Varient { cons, flds, span })
+        Ok(Varient { cons, flds, span })
     }
 
-    fn parse_func_sign(&mut self) -> Option<FuncSign> {
+    fn parse_func_sign(&mut self) -> ParseResult<FuncSign> {
         let start = self.start_pos();
         self.match_token(Token::Function)?;
         let func = self.parse_lident()?;
@@ -645,7 +738,7 @@ impl<'src> Parser<'src> {
             let ident = par.parse_lident()?;
             par.match_token(Token::Colon)?;
             let typ = par.parse_type()?;
-            Some((ident, typ))
+            Ok((ident, typ))
         })?;
         let res = self
             .option(|par| {
@@ -657,7 +750,7 @@ impl<'src> Parser<'src> {
             });
         let end = self.end_pos();
         let span = Span { start, end: end };
-        Some(FuncSign {
+        Ok(FuncSign {
             func,
             polys,
             pars,
@@ -666,7 +759,7 @@ impl<'src> Parser<'src> {
         })
     }
 
-    fn parse_decl(&mut self) -> Option<Decl> {
+    fn parse_decl(&mut self) -> ParseResult<Decl> {
         let start = self.start_pos();
         match self.peek_token() {
             Token::Function => {
@@ -674,7 +767,7 @@ impl<'src> Parser<'src> {
                 let body = self.parse_block(Token::Begin)?;
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Some(Decl::Func { sign, body, span })
+                Ok(Decl::Func { sign, body, span })
             }
             Token::Datatype => {
                 self.match_token(Token::Datatype)?;
@@ -685,18 +778,22 @@ impl<'src> Parser<'src> {
                 })?;
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Some(Decl::Data {
+                Ok(Decl::Data {
                     ident,
                     polys,
                     vars,
                     span,
                 })
             }
-            _tok => None,
+            _tok => Err(ParseError::FailedToParse(
+                "declaration",
+                self.peek_token(),
+                self.peek_span().clone(),
+            )),
         }
     }
 
-    fn parse_module(&mut self) -> Option<Module> {
+    fn parse_module(&mut self) -> ParseResult<Module> {
         self.match_token(Token::Module)?;
         let name = self.parse_uident()?;
         self.match_token(Token::Where)?;
@@ -704,27 +801,41 @@ impl<'src> Parser<'src> {
         loop {
             match self.peek_token() {
                 Token::Function | Token::Datatype => {
-                    let res = self.parse_decl()?;
-                    decls.push(res)
+                    // toplevel error recovering
+                    match self.parse_decl() {
+                        Ok(res) => decls.push(res),
+                        Err(err) => {
+                            self.emit(&err);
+                            while matches!(
+                                self.peek_token(),
+                                Token::Function | Token::Datatype | Token::EndOfFile
+                            ) {
+                                self.next_token()?;
+                            }
+                        }
+                    }
                 }
                 _tok => break,
             }
         }
         self.match_token(Token::EndOfFile)?;
-        Some(Module { name, decls })
+        Ok(Module { name, decls })
     }
 }
 
-pub fn parse_expr<'src>(s: &'src str) -> Option<Expr> {
-    let mut par = Parser::new(s);
+pub fn parse_expr<'src, 'diag>(src: &'src str, diags: &'diag mut Vec<Diagnostic>) -> Option<Expr> {
+    let mut par = Parser::new(src, diags);
     let res = par.parse_expr();
-    res
+    res.ok()
 }
 
-pub fn parse_module<'src>(s: &'src str) -> Option<Module> {
-    let mut par = Parser::new(s);
+pub fn parse_module<'src, 'diag>(
+    src: &'src str,
+    diags: &'diag mut Vec<Diagnostic>,
+) -> Option<Module> {
+    let mut par = Parser::new(src, diags);
     let res = par.parse_module();
-    res
+    res.ok()
 }
 
 #[test]
@@ -782,7 +893,18 @@ begin
     ^r
 end
 "#;
-    let mut par = Parser::new(s);
-    let res = par.parse_module().unwrap();
-    println!("{:#?}", res);
+    let mut diags = Vec::new();
+    let mut par = Parser::new(s, &mut diags);
+    match par.parse_module() {
+        Ok(res) => {
+            assert!(diags.is_empty());
+            println!("{:#?}", res);
+        }
+        Err(err) => {
+            println!("{:#?}", err);
+        }
+    }
+    for diag in diags {
+        println!("{}", diag.report(s, 10));
+    }
 }

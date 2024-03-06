@@ -398,7 +398,9 @@ begin
     x
 end
 "#;
-    let mut modl = parse_module(s).unwrap();
+    let mut diags = Vec::new();
+    let mut modl = parse_module(s, &mut diags).unwrap();
+    assert!(diags.is_empty());
     rename_module(&mut modl).unwrap();
     println!("{:#?}", modl);
 }

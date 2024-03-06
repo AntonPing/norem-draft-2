@@ -4,8 +4,9 @@ use crate::compile::evaluate::Value;
 use crate::{compile, optimize, syntax, typing};
 
 pub fn compile_file(path: &String) -> Value {
-    let source = fs::read_to_string(path).expect("failed to read file!");
-    let mut modl = syntax::parser::parse_module(&source).expect("failed to parse module!");
+    let src = fs::read_to_string(path).expect("failed to read file!");
+    let mut diags = Vec::new();
+    let mut modl = syntax::parser::parse_module(&src, &mut diags).expect("failed to parse module!");
     syntax::rename::rename_module(&mut modl).expect("failed in identifier renaming phase!");
     typing::check::check_module(&modl).expect("failed in type checking phase!");
 
