@@ -15,13 +15,17 @@ pub enum UnifyType {
 impl From<&Type> for UnifyType {
     fn from(value: &Type) -> Self {
         match value {
-            Type::Lit { lit } => UnifyType::Lit(*lit),
-            Type::Var { ident } => UnifyType::Var(*ident),
-            Type::Cons { cons, args } => {
+            Type::Lit { lit, span: _ } => UnifyType::Lit(*lit),
+            Type::Var { ident, span: _ } => UnifyType::Var(*ident),
+            Type::Cons {
+                cons,
+                args,
+                span: _,
+            } => {
                 let args = args.iter().map(|arg| arg.into()).collect();
                 UnifyType::Cons(*cons, args)
             }
-            Type::Func { pars, res } => {
+            Type::Func { pars, res, span: _ } => {
                 let pars = pars.iter().map(|par| par.into()).collect();
                 let res = Box::new(res.deref().into());
                 UnifyType::Func(pars, res)

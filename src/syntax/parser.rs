@@ -656,29 +656,42 @@ impl<'src, 'diag> Parser<'src, 'diag> {
     }
 
     fn parse_type(&mut self) -> ParseResult<Type> {
+        let start = self.start_pos();
         match self.peek_token() {
             Token::TyInt => {
                 self.match_token(Token::TyInt)?;
+                let end = self.end_pos();
+                let span = Span { start, end };
                 Ok(Type::Lit {
                     lit: LitType::TyInt,
+                    span,
                 })
             }
             Token::TyFloat => {
                 self.match_token(Token::TyFloat)?;
+                let end = self.end_pos();
+                let span = Span { start, end };
                 Ok(Type::Lit {
                     lit: LitType::TyFloat,
+                    span,
                 })
             }
             Token::TyBool => {
                 self.match_token(Token::TyBool)?;
+                let end = self.end_pos();
+                let span = Span { start, end };
                 Ok(Type::Lit {
                     lit: LitType::TyBool,
+                    span,
                 })
             }
             Token::TyChar => {
                 self.match_token(Token::TyChar)?;
+                let end = self.end_pos();
+                let span = Span { start, end };
                 Ok(Type::Lit {
                     lit: LitType::TyChar,
+                    span,
                 })
             }
             Token::UpperIdent => {
@@ -690,9 +703,17 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                         Token::RBracket,
                         |par| par.parse_type(),
                     )?;
-                    Ok(Type::Cons { cons: ident, args })
+                    let end = self.end_pos();
+                    let span = Span { start, end };
+                    Ok(Type::Cons {
+                        cons: ident,
+                        args,
+                        span,
+                    })
                 } else {
-                    Ok(Type::Var { ident })
+                    let end = self.end_pos();
+                    let span = Span { start, end };
+                    Ok(Type::Var { ident, span })
                 }
             }
             Token::Fn => {
@@ -701,16 +722,23 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                     self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
                         par.parse_type()
                     })?;
-                if self.peek_token() == Token::Arrow {
+                let res = if self.peek_token() == Token::Arrow {
                     self.match_token(Token::Arrow)?;
-                    let res = Box::new(self.parse_type()?);
-                    Ok(Type::Func { pars, res })
+                    Box::new(self.parse_type()?)
                 } else {
-                    let res = Box::new(Type::Lit {
+                    let pos = self.end_pos();
+                    let span = Span {
+                        start: pos,
+                        end: pos,
+                    };
+                    Box::new(Type::Lit {
                         lit: LitType::TyUnit,
-                    });
-                    Ok(Type::Func { pars, res })
-                }
+                        span,
+                    })
+                };
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Type::Func { pars, res, span })
             }
             _tok => Err(ParseError::FailedToParse(
                 "type",
@@ -745,8 +773,16 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                 par.match_token(Token::Arrow)?;
                 par.parse_type()
             })?
-            .unwrap_or(Type::Lit {
-                lit: LitType::TyUnit,
+            .unwrap_or_else(|| {
+                let pos = self.end_pos();
+                let span = Span {
+                    start: pos,
+                    end: pos,
+                };
+                Type::Lit {
+                    lit: LitType::TyUnit,
+                    span,
+                }
             });
         let end = self.end_pos();
         let span = Span { start, end: end };

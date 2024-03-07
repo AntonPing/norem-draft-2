@@ -57,10 +57,24 @@ impl PrimOpr {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Type {
-    Lit { lit: LitType },
-    Var { ident: Ident },
-    Cons { cons: Ident, args: Vec<Type> },
-    Func { pars: Vec<Type>, res: Box<Type> },
+    Lit {
+        lit: LitType,
+        span: Span,
+    },
+    Var {
+        ident: Ident,
+        span: Span,
+    },
+    Cons {
+        cons: Ident,
+        args: Vec<Type>,
+        span: Span,
+    },
+    Func {
+        pars: Vec<Type>,
+        res: Box<Type>,
+        span: Span,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]

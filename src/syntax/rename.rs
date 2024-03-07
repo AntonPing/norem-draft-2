@@ -219,16 +219,16 @@ impl<'diag> Renamer<'diag> {
 
     fn rename_type(&mut self, typ: &mut Type) -> RenameResult {
         match typ {
-            Type::Lit { lit: _ } => Ok(()),
-            Type::Var { ident } => self.rename_typ_ident(ident, Span::default()),
-            Type::Cons { cons, args } => {
-                self.rename_typ_ident(cons, Span::default())?;
+            Type::Lit { lit: _, span: _ } => Ok(()),
+            Type::Var { ident, span } => self.rename_typ_ident(ident, span.clone()),
+            Type::Cons { cons, args, span } => {
+                self.rename_typ_ident(cons, span.clone())?;
                 for arg in args.iter_mut() {
                     self.rename_type(arg)?;
                 }
                 Ok(())
             }
-            Type::Func { pars, res } => {
+            Type::Func { pars, res, span: _ } => {
                 for par in pars.iter_mut() {
                     self.rename_type(par)?;
                 }
