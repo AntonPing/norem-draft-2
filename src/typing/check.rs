@@ -4,25 +4,50 @@ use crate::utils::ident::Ident;
 use std::collections::HashMap;
 use std::ops::Deref;
 
-struct TypeChecker {
+use super::diagnostic::Diagnostic;
+
+struct TypeChecker<'diag> {
     val_ctx: HashMap<Ident, (Vec<Ident>, UnifyType)>,
     cons_ctx: HashMap<Ident, (Vec<Ident>, Vec<Labeled<UnifyType>>, UnifyType)>,
     solver: UnifySolver,
-}
-
-impl TypeChecker {
-    pub fn new() -> TypeChecker {
-        TypeChecker {
-            val_ctx: HashMap::new(),
-            cons_ctx: HashMap::new(),
-            solver: UnifySolver::new(),
-        }
-    }
+    diags: &'diag mut Vec<Diagnostic>,
 }
 
 type CheckResult<T> = Result<T, String>;
 
-impl TypeChecker {
+impl<'diag> TypeChecker<'diag> {
+    pub fn new(diags: &'diag mut Vec<Diagnostic>) -> TypeChecker<'diag> {
+        TypeChecker {
+            val_ctx: HashMap::new(),
+            cons_ctx: HashMap::new(),
+            solver: UnifySolver::new(),
+            diags,
+        }
+    }
+
+    fn fresh(&mut self) -> UnifyType {
+        UnifyType::Cell(self.solver.new_cell())
+    }
+
+    fn unify(&mut self, typ1: &UnifyType, typ2: &UnifyType) {
+        match self.solver.unify(typ1, typ2) {
+            Ok(()) => {}
+            Err(err) => match err {
+                unify::UnifyError::VecDiffLen(_typs1, _typs2) => {
+                    self.diags.push(Diagnostic::error(
+                        "cannot unify varibles with different length!",
+                    ));
+                }
+                unify::UnifyError::CannotUnify(_typ1, _typ2) => {
+                    self.diags.push(Diagnostic::error("cannot unify types!"));
+                }
+                unify::UnifyError::OccurCheckFailed(_var, _typ) => {
+                    self.diags.push(Diagnostic::error("occur check failed!"));
+                }
+            },
+        }
+    }
+
     fn check_expr(&mut self, expr: &Expr) -> CheckResult<UnifyType> {
         match expr {
             Expr::Lit { lit, span: _ } => {
@@ -33,58 +58,75 @@ impl TypeChecker {
                 if let Some((polys, typ)) = self.val_ctx.get(&ident) {
                     Ok(self.solver.instantiate(polys, typ))
                 } else {
-                    Err("Can't find variable in scope!".to_string())
+                    // the error reporting part should be in renamer
+                    Ok(self.fresh())
                 }
             }
-            Expr::Prim {
-                prim,
-                args,
-                span: _,
-            } => {
+            Expr::Prim { prim, args, span } => {
                 if args.len() != prim.get_arity() {
-                    return Err("Primitive with wrong number of arguments!".to_string());
+                    self.diags.push(
+                        Diagnostic::error("primitive with wrong number of aruments!")
+                            .line_span(span.clone(), "here is the primitive application"),
+                    );
+                    let res = match prim {
+                        PrimOpr::IAdd | PrimOpr::ISub | PrimOpr::IMul => {
+                            UnifyType::Lit(LitType::TyInt)
+                        }
+                        PrimOpr::ICmpLs | PrimOpr::ICmpEq | PrimOpr::ICmpGr => {
+                            UnifyType::Lit(LitType::TyBool)
+                        }
+                    };
+                    return Ok(res);
                 }
                 match prim {
                     PrimOpr::IAdd | PrimOpr::ISub | PrimOpr::IMul => {
                         let arg0 = self.check_expr(&args[0])?;
-                        self.solver.unify(&arg0, &UnifyType::Lit(LitType::TyInt))?;
+                        self.unify(&arg0, &UnifyType::Lit(LitType::TyInt));
                         let arg1 = self.check_expr(&args[1])?;
-                        self.solver.unify(&arg1, &UnifyType::Lit(LitType::TyInt))?;
+                        self.unify(&arg1, &UnifyType::Lit(LitType::TyInt));
                         Ok(UnifyType::Lit(LitType::TyInt))
                     }
                     PrimOpr::ICmpLs | PrimOpr::ICmpEq | PrimOpr::ICmpGr => {
                         let arg0 = self.check_expr(&args[0])?;
-                        self.solver.unify(&arg0, &UnifyType::Lit(LitType::TyInt))?;
+                        self.unify(&arg0, &UnifyType::Lit(LitType::TyInt));
                         let arg1 = self.check_expr(&args[1])?;
-                        self.solver.unify(&arg1, &UnifyType::Lit(LitType::TyInt))?;
+                        self.unify(&arg1, &UnifyType::Lit(LitType::TyInt));
                         Ok(UnifyType::Lit(LitType::TyBool))
                     }
                 }
             }
-            Expr::Cons {
-                cons,
-                flds,
-                span: _,
-            } => {
+            Expr::Cons { cons, flds, span } => {
                 if let Some((polys, args, res)) = self.cons_ctx.get(cons).cloned() {
-                    if flds.len() == args.len() {
-                        let map = self.solver.make_instantiate_map(&polys);
-                        for arg in args {
-                            if let Some(fld) = flds.iter().find(|fld| fld.label == arg.label) {
-                                let typ1 = self.check_expr(&fld.data)?;
-                                let typ2 = unify::substitute(&map, &arg.data);
-                                self.solver.unify(&typ1, &typ2)?;
-                            } else {
-                                return Err("Construct application with wrong label!".to_string());
-                            }
+                    let map = self.solver.make_instantiate_map(&polys).clone();
+                    let res = unify::substitute(&map, &res);
+                    for arg in args.iter() {
+                        if let Some(fld) = flds.iter().find(|fld| fld.label == arg.label) {
+                            let typ1 = self.check_expr(&fld.data)?;
+                            let typ2 = unify::substitute(&map, &arg.data);
+                            self.unify(&typ1, &typ2);
+                        } else {
+                            self.diags.push(
+                                Diagnostic::error("constructor label missing!").line_span(
+                                    span.clone(),
+                                    format!("label {} is missing!", arg.label),
+                                ),
+                            );
                         }
-                        let res = unify::substitute(&map, &res);
-                        Ok(res)
-                    } else {
-                        Err("Construct application with wrong argument length!".to_string())
                     }
+                    for fld in flds {
+                        if args.iter().find(|arg| fld.label == arg.label).is_none() {
+                            self.diags.push(
+                                Diagnostic::error("constructor label not defined!").line_span(
+                                    span.clone(),
+                                    format!("label {} not found!", fld.label),
+                                ),
+                            );
+                        }
+                    }
+                    Ok(res)
                 } else {
-                    Err(format!("Can't find constructor {} in scope!", cons))
+                    // the error reporting part should be in renamer
+                    Ok(self.fresh())
                 }
             }
             Expr::Func {
@@ -95,7 +137,7 @@ impl TypeChecker {
                 let pars_ty: Vec<UnifyType> = pars
                     .iter()
                     .map(|par| {
-                        let cell = self.solver.new_cell();
+                        let cell = self.fresh();
                         self.val_ctx.insert(*par, (Vec::new(), cell.clone()));
                         cell
                     })
@@ -113,11 +155,11 @@ impl TypeChecker {
                     .iter()
                     .map(|arg| self.check_expr(arg))
                     .collect::<CheckResult<Vec<_>>>()?;
-                let res_ty = self.solver.new_cell();
-                self.solver.unify(
+                let res_ty = self.fresh();
+                self.unify(
                     &func_ty,
                     &UnifyType::Func(args_ty, Box::new(res_ty.clone())),
-                )?;
+                );
                 Ok(res_ty)
             }
             Expr::Ifte {
@@ -127,11 +169,10 @@ impl TypeChecker {
                 span: _,
             } => {
                 let cond_ty = self.check_expr(cond)?;
-                self.solver
-                    .unify(&cond_ty, &UnifyType::Lit(LitType::TyBool))?;
+                self.unify(&cond_ty, &UnifyType::Lit(LitType::TyBool));
                 let trbr_ty = self.check_expr(trbr)?;
                 let flbr_ty = self.check_expr(flbr)?;
-                self.solver.unify(&trbr_ty, &flbr_ty)?;
+                self.unify(&trbr_ty, &flbr_ty);
                 Ok(trbr_ty)
             }
             Expr::Case {
@@ -140,7 +181,7 @@ impl TypeChecker {
                 span: _,
             } => {
                 let lhs = self.check_expr(expr)?;
-                let rhs = self.solver.new_cell();
+                let rhs = self.fresh();
                 for rule in rules.iter() {
                     self.check_rule(rule, &lhs, &rhs)?;
                 }
@@ -152,11 +193,11 @@ impl TypeChecker {
             }
             Expr::RefGet { expr, span: _ } => {
                 let typ = self.check_expr(expr)?;
-                let cell = self.solver.new_cell();
-                self.solver.unify(
+                let cell = self.fresh();
+                self.unify(
                     &typ,
                     &UnifyType::Cons(Ident::dummy(&"Ref"), vec![cell.clone()]),
-                )?;
+                );
                 Ok(cell)
             }
             Expr::Stmt {
@@ -172,7 +213,7 @@ impl TypeChecker {
                 } => {
                     let ty = self.check_expr(expr)?;
                     if let Some(ty_anno) = ty_anno {
-                        self.solver.unify(&ty, &ty_anno.into())?;
+                        self.unify(&ty, &ty_anno.into());
                     }
                     self.val_ctx.insert(*ident, (Vec::new(), ty));
                     let res_ty = self.check_expr(cont)?;
@@ -181,8 +222,7 @@ impl TypeChecker {
                 Stmt::Assign { lhs, rhs, span: _ } => {
                     let lhs = self.check_expr(lhs)?;
                     let rhs = self.check_expr(rhs)?;
-                    self.solver
-                        .unify(&lhs, &UnifyType::Cons(Ident::dummy(&"Ref"), vec![rhs]))?;
+                    self.unify(&lhs, &UnifyType::Cons(Ident::dummy(&"Ref"), vec![rhs]));
                     let res_ty = self.check_expr(cont)?;
                     Ok(res_ty)
                 }
@@ -192,17 +232,15 @@ impl TypeChecker {
                     span: _,
                 } => {
                     let cond_ty = self.check_expr(cond)?;
-                    self.solver
-                        .unify(&cond_ty, &UnifyType::Lit(LitType::TyBool))?;
+                    self.unify(&cond_ty, &UnifyType::Lit(LitType::TyBool));
                     let body_ty = self.check_expr(body)?;
-                    self.solver
-                        .unify(&body_ty, &UnifyType::Lit(LitType::TyUnit))?;
+                    self.unify(&body_ty, &UnifyType::Lit(LitType::TyUnit));
                     let res_ty = self.check_expr(cont)?;
                     Ok(res_ty)
                 }
                 Stmt::Do { expr, span: _ } => {
                     let ty = self.check_expr(expr)?;
-                    self.solver.unify(&ty, &UnifyType::Lit(LitType::TyUnit))?;
+                    self.unify(&ty, &UnifyType::Lit(LitType::TyUnit));
                     let res_ty = self.check_expr(cont)?;
                     Ok(res_ty)
                 }
@@ -213,7 +251,7 @@ impl TypeChecker {
     fn check_rule(&mut self, rule: &Rule, lhs: &UnifyType, rhs: &UnifyType) -> CheckResult<()> {
         self.check_pattern(&rule.patn, lhs)?;
         let typ = self.check_expr(&rule.body)?;
-        self.solver.unify(&typ, rhs)?;
+        self.unify(&typ, rhs);
         Ok(())
     }
 
@@ -224,33 +262,41 @@ impl TypeChecker {
                 Ok(())
             }
             Pattern::Lit { lit, span: _ } => {
-                self.solver
-                    .unify(&UnifyType::Lit(lit.get_lit_type()), lhs)?;
+                self.unify(&UnifyType::Lit(lit.get_lit_type()), lhs);
                 Ok(())
             }
-            Pattern::Cons {
-                cons,
-                patns,
-                span: _,
-            } => {
+            Pattern::Cons { cons, patns, span } => {
                 if let Some((polys, args, res)) = self.cons_ctx.get(cons).cloned() {
-                    if patns.len() == args.len() {
-                        let map = self.solver.make_instantiate_map(&polys);
-                        for arg in args {
-                            if let Some(patn) = patns.iter().find(|patn| patn.label == arg.label) {
-                                let typ = unify::substitute(&map, &arg.data);
-                                self.check_pattern(&patn.data, &typ)?;
-                            } else {
-                                return Err("Construct application with wrong label!".to_string());
-                            }
+                    let map = self.solver.make_instantiate_map(&polys);
+                    for arg in args.iter() {
+                        if let Some(patn) = patns.iter().find(|patn| patn.label == arg.label) {
+                            let typ = unify::substitute(&map, &arg.data);
+                            self.check_pattern(&patn.data, &typ)?;
+                        } else {
+                            self.diags.push(
+                                Diagnostic::error("constructor label missing!").line_span(
+                                    span.clone(),
+                                    format!("label {} is missing!", arg.label),
+                                ),
+                            );
                         }
-                        let res = unify::substitute(&map, &res);
-                        self.solver.unify(&res, lhs)
-                    } else {
-                        Err("Construct application with wrong argument length!".to_string())
                     }
+                    for patn in patns.iter() {
+                        if args.iter().find(|arg| patn.label == arg.label).is_none() {
+                            self.diags.push(
+                                Diagnostic::error("constructor label not defined!").line_span(
+                                    span.clone(),
+                                    format!("label {} not found!", patn.label),
+                                ),
+                            );
+                        }
+                    }
+                    let res = unify::substitute(&map, &res);
+                    self.unify(&res, lhs);
+                    Ok(())
                 } else {
-                    Err(format!("Can't find constructor {} in scope!", cons))
+                    // the error reporting part should be in renamer
+                    Ok(())
                 }
             }
             Pattern::Wild { span: _ } => Ok(()),
@@ -275,7 +321,7 @@ impl TypeChecker {
                     self.val_ctx.insert(*par, (Vec::new(), typ.into()));
                 }
                 let res_ty = self.check_expr(body)?;
-                self.solver.unify(&res_ty, &res.into())?;
+                self.unify(&res_ty, &res.into());
                 Ok(())
             }
             Decl::Data { .. } => Ok(()),
@@ -340,14 +386,14 @@ impl TypeChecker {
     }
 }
 
-pub fn check_expr(expr: &Expr) -> CheckResult<UnifyType> {
-    let mut pass = TypeChecker::new();
+pub fn check_expr<'diag>(expr: &Expr, diags: &'diag mut Vec<Diagnostic>) -> CheckResult<UnifyType> {
+    let mut pass = TypeChecker::new(diags);
     let res = pass.check_expr(expr)?;
     Ok(pass.solver.merge(&res))
 }
 
-pub fn check_module(modl: &Module) -> CheckResult<()> {
-    let mut pass = TypeChecker::new();
+pub fn check_module<'diag>(modl: &Module, diags: &'diag mut Vec<Diagnostic>) -> CheckResult<()> {
+    let mut pass = TypeChecker::new(diags);
     pass.check_module(modl)?;
     Ok(())
 }
@@ -392,7 +438,7 @@ begin
     let r = @iadd(x, 1);
     r
 end
-function id[T](x: T) -> T
+function id[T, U](x: U) -> T
 begin
     let r = ref 42;
     r := ^r;
@@ -405,5 +451,8 @@ end
     println!("{:#?}", &modl);
     crate::syntax::rename::rename_module(&mut modl, &mut diags).unwrap();
     println!("{:#?}", &modl);
-    check_module(&modl).unwrap();
+    check_module(&modl, &mut diags).unwrap();
+    for diag in diags {
+        println!("{}", diag.report(s, 10));
+    }
 }

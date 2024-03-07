@@ -34,7 +34,13 @@ impl From<&Type> for UnifyType {
     }
 }
 
-type UnifyResult = Result<(), String>;
+pub enum UnifyError {
+    VecDiffLen(Vec<UnifyType>, Vec<UnifyType>),
+    CannotUnify(UnifyType, UnifyType),
+    OccurCheckFailed(usize, UnifyType),
+}
+
+type UnifyResult = Result<(), UnifyError>;
 
 pub struct UnifySolver {
     arena: Vec<Option<UnifyType>>,
@@ -45,14 +51,14 @@ impl UnifySolver {
         UnifySolver { arena: Vec::new() }
     }
 
-    pub fn new_cell(&mut self) -> UnifyType {
+    pub fn new_cell(&mut self) -> usize {
         self.arena.push(None);
-        UnifyType::Cell(self.arena.len() - 1)
+        self.arena.len() - 1
     }
 
     pub fn unify_many(&mut self, typs1: &Vec<UnifyType>, typs2: &Vec<UnifyType>) -> UnifyResult {
         if typs1.len() != typs2.len() {
-            Err("Can't unify two type vectors with different length!".to_string())
+            Err(UnifyError::VecDiffLen(typs1.clone(), typs2.clone()))
         } else {
             for (typ1, typ2) in typs1.iter().zip(typs2.iter()) {
                 self.unify(typ1, typ2)?;
@@ -76,7 +82,7 @@ impl UnifySolver {
                 Ok(())
             }
             (UnifyType::Cell(cell), typ) | (typ, UnifyType::Cell(cell)) => self.assign(*cell, typ),
-            (_typ1, _typ2) => Err("Unification failed!".to_string()),
+            (typ1, typ2) => Err(UnifyError::CannotUnify(typ1.clone(), typ2.clone())),
         }
     }
 
@@ -86,7 +92,7 @@ impl UnifySolver {
             self.unify(typ, &typ2.clone())
         } else {
             if self.occur_check(cell, typ) {
-                Err("Occur check failed in unification!".to_string())
+                Err(UnifyError::OccurCheckFailed(cell, typ.clone()))
             } else {
                 self.arena[cell] = Some(typ.clone());
                 Ok(())
@@ -146,16 +152,7 @@ impl UnifySolver {
     }
 
     pub fn make_instantiate_map(&mut self, polys: &Vec<Ident>) -> HashMap<Ident, usize> {
-        polys
-            .iter()
-            .map(|poly| {
-                if let UnifyType::Cell(cell) = self.new_cell() {
-                    (*poly, cell)
-                } else {
-                    unreachable!()
-                }
-            })
-            .collect()
+        polys.iter().map(|poly| (*poly, self.new_cell())).collect()
     }
 }
 
