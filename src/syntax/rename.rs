@@ -1,6 +1,6 @@
 use super::ast::*;
 use super::lexer::Span;
-use crate::typing::diagnostic::Diagnostic;
+use crate::analyze::diagnostic::Diagnostic;
 use crate::utils::env_map::EnvMap;
 use crate::utils::ident::Ident;
 use std::ops::DerefMut;

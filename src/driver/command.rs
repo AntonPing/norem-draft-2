@@ -1,7 +1,7 @@
 use std::fs;
 
 use crate::compile::evaluate::Value;
-use crate::{compile, optimize, syntax, typing};
+use crate::{analyze, compile, optimize, syntax};
 
 pub fn compile_file(path: &String) -> Value {
     let src = fs::read_to_string(path).expect("failed to read file!");
@@ -9,7 +9,7 @@ pub fn compile_file(path: &String) -> Value {
     let mut modl = syntax::parser::parse_module(&src, &mut diags).expect("failed to parse module!");
     syntax::rename::rename_module(&mut modl, &mut diags)
         .expect("failed in identifier renaming phase!");
-    typing::check::check_module(&modl, &mut diags).expect("failed in type checking phase!");
+    analyze::check::check_module(&modl, &mut diags).expect("failed in type checking phase!");
 
     let modl = optimize::cps_trans::Translator::run(&modl);
     let modl = optimize::optimize::Optimizer::run(modl);

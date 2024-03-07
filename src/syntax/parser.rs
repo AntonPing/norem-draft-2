@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
 use super::lexer::{self, Span, Token, TokenSpan};
+use crate::analyze::diagnostic::Diagnostic;
 use crate::syntax::ast::*;
-use crate::typing::diagnostic::Diagnostic;
 use crate::utils::ident::Ident;
 use crate::utils::intern::InternStr;
 

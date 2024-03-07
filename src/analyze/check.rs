@@ -1,5 +1,5 @@
+use crate::analyze::unify::{self, UnifySolver, UnifyType};
 use crate::syntax::ast::*;
-use crate::typing::unify::{self, UnifySolver, UnifyType};
 use crate::utils::ident::Ident;
 use std::collections::HashMap;
 use std::ops::Deref;
