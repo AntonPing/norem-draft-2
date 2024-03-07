@@ -5,7 +5,7 @@ use std::ops::Deref;
 use super::cps::{self, Atom, ContDecl, PrimOpr};
 use super::pattern::PatnMatrix;
 
-use crate::optimize::pattern;
+use crate::core::pattern;
 use crate::syntax::ast::{self, FuncSign, Pattern, Varient};
 use crate::utils::ident::Ident;
 use crate::utils::intern::InternStr;

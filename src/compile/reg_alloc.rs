@@ -201,7 +201,7 @@ func main(top):
         call f(k, 42);
     end
 "#;
-    let modl = crate::optimize::parser::parse_module(s).unwrap();
+    let modl = crate::core::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
     let mut modl = super::codegen::Codegen::run(&modl);
     println!("{}", modl);

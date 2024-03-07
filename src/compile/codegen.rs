@@ -1,5 +1,5 @@
 use super::instr::{Block, Instr, Module, Reg};
-use crate::optimize::cps::{self, Atom, Expr, FuncDecl, PrimOpr};
+use crate::core::cps::{self, Atom, Expr, FuncDecl, PrimOpr};
 use crate::utils::ident::Ident;
 use std::collections::HashMap;
 
@@ -337,7 +337,7 @@ func main(k):
     call f(k, 42);
 
 "#;
-    let modl = crate::optimize::parser::parse_module(s).unwrap();
+    let modl = crate::core::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
     let modl = Codegen::run(&modl);
     println!("{}\n", modl);

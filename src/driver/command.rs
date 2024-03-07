@@ -1,7 +1,7 @@
 use std::fs;
 
 use crate::compile::evaluate::Value;
-use crate::{analyze, compile, optimize, syntax};
+use crate::{analyze, compile, core, syntax};
 
 pub fn compile_file(path: &String) -> Value {
     let src = fs::read_to_string(path).expect("failed to read file!");
@@ -11,13 +11,13 @@ pub fn compile_file(path: &String) -> Value {
         .expect("failed in identifier renaming phase!");
     analyze::check::check_module(&modl, &mut diags).expect("failed in type checking phase!");
 
-    let modl = optimize::cps_trans::Translator::run(&modl);
-    let modl = optimize::optimize::Optimizer::run(modl);
-    let mark = optimize::inline::InlineScan::run(&modl);
-    let modl = optimize::inline::InlinePerform::run(modl, mark);
-    let modl = optimize::optimize::Optimizer::run(modl);
-    let modl = optimize::closure::ClosConv::run(modl);
-    let modl = optimize::optimize::Optimizer::run(modl);
+    let modl = core::cps_trans::Translator::run(&modl);
+    let modl = core::optimize::Optimizer::run(modl);
+    let mark = core::inline::InlineScan::run(&modl);
+    let modl = core::inline::InlinePerform::run(modl, mark);
+    let modl = core::optimize::Optimizer::run(modl);
+    let modl = core::closure::ClosConv::run(modl);
+    let modl = core::optimize::Optimizer::run(modl);
 
     let modl = compile::codegen::Codegen::run(&modl);
     // compile::reg_alloc::RegAlloc::run(&mut modl);
