@@ -257,7 +257,7 @@ func main(top):
     println!("{}\n", modl);
     let modl = crate::core::closure::ClosConv::run(modl);
     println!("{}\n", modl);
-    let mut modl = crate::compile::codegen::Codegen::run(&modl);
+    let mut modl = crate::backend::codegen::Codegen::run(&modl);
     println!("{}", modl);
     super::reg_alloc::RegAlloc::run(&mut modl);
     println!("{}", modl);

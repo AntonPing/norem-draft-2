@@ -1,5 +1,5 @@
 mod examples;
-use norem_lang::compile::evaluate::Value;
+use norem_lang::backend::evaluate::Value;
 
 #[test]
 fn test_rec_fib() {

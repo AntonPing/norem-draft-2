@@ -1,4 +1,4 @@
-use crate::compile::instr::{Block, Instr};
+use crate::backend::instr::{Block, Instr};
 use crate::utils::ident::Ident;
 use std::collections::HashMap;
 
@@ -92,7 +92,7 @@ func main(top):
 "#;
     let modl = crate::core::parser::parse_module(s).unwrap();
     println!("{}\n", modl);
-    let modl = crate::compile::codegen::Codegen::run(&modl);
+    let modl = crate::backend::codegen::Codegen::run(&modl);
     println!("{}\n", modl);
     let (code, _) = Linker::run(&modl);
     for line in code {

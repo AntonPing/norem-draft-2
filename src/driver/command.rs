@@ -1,7 +1,7 @@
 use std::fs;
 
-use crate::compile::evaluate::Value;
-use crate::{analyze, compile, core, syntax};
+use crate::backend::evaluate::Value;
+use crate::{analyze, backend, core, syntax};
 
 pub fn compile_file(path: &String) -> Value {
     let src = fs::read_to_string(path).expect("failed to read file!");
@@ -19,11 +19,11 @@ pub fn compile_file(path: &String) -> Value {
     let modl = core::closure::ClosConv::run(modl);
     let modl = core::optimize::Optimizer::run(modl);
 
-    let modl = compile::codegen::Codegen::run(&modl);
+    let modl = backend::codegen::Codegen::run(&modl);
     // compile::reg_alloc::RegAlloc::run(&mut modl);
-    let (code, map) = compile::linking::Linker::run(&modl);
+    let (code, map) = backend::linking::Linker::run(&modl);
     let (_, entry) = map.iter().find(|(k, _)| k.as_str() == "main").unwrap();
-    let mut evl = compile::evaluate::Evaluator::new(code, *entry);
+    let mut evl = backend::evaluate::Evaluator::new(code, *entry);
     let val = unsafe { evl.run() };
     val
 }

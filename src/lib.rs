@@ -1,5 +1,5 @@
 pub mod analyze;
-pub mod compile;
+pub mod backend;
 pub mod core;
 pub mod driver;
 pub mod syntax;

@@ -1,4 +1,4 @@
-use norem_lang::compile::evaluate::Value;
+use norem_lang::backend::evaluate::Value;
 
 pub fn test_file(module: &'static str, expected: Value) {
     let mut input = String::new();
