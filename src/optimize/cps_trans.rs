@@ -677,7 +677,7 @@ end
     let mut diags = Vec::new();
     let mut modl = crate::syntax::parser::parse_module(s, &mut diags).unwrap();
     assert!(diags.is_empty());
-    crate::syntax::rename::rename_module(&mut modl).unwrap();
+    crate::syntax::rename::rename_module(&mut modl, &mut diags).unwrap();
     let res = Translator::run(&modl);
     println!("{}", res);
 }

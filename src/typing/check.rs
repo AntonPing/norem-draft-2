@@ -403,7 +403,7 @@ end
     let mut modl = crate::syntax::parser::parse_module(s, &mut diags).unwrap();
     assert!(diags.is_empty());
     println!("{:#?}", &modl);
-    crate::syntax::rename::rename_module(&mut modl).unwrap();
+    crate::syntax::rename::rename_module(&mut modl, &mut diags).unwrap();
     println!("{:#?}", &modl);
     check_module(&modl).unwrap();
 }

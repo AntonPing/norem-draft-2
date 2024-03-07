@@ -7,7 +7,8 @@ pub fn compile_file(path: &String) -> Value {
     let src = fs::read_to_string(path).expect("failed to read file!");
     let mut diags = Vec::new();
     let mut modl = syntax::parser::parse_module(&src, &mut diags).expect("failed to parse module!");
-    syntax::rename::rename_module(&mut modl).expect("failed in identifier renaming phase!");
+    syntax::rename::rename_module(&mut modl, &mut diags)
+        .expect("failed in identifier renaming phase!");
     typing::check::check_module(&modl).expect("failed in type checking phase!");
 
     let modl = optimize::cps_trans::Translator::run(&modl);

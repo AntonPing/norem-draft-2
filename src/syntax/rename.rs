@@ -1,22 +1,26 @@
-use super::ast::{Decl, Expr, FuncSign, Module, Pattern, Rule, Stmt, Type};
+use super::ast::*;
+use super::lexer::Span;
+use crate::typing::diagnostic::Diagnostic;
 use crate::utils::env_map::EnvMap;
 use crate::utils::ident::Ident;
 use std::ops::DerefMut;
 
-struct Renamer {
+struct Renamer<'diag> {
     val_ctx: EnvMap<Ident, Ident>,
     typ_ctx: EnvMap<Ident, Ident>,
     cons_ctx: EnvMap<Ident, Ident>,
+    diags: &'diag mut Vec<Diagnostic>,
 }
 
-type RenameResult = Result<(), String>;
+type RenameResult = Result<(), ()>;
 
-impl Renamer {
-    pub fn new() -> Renamer {
+impl<'diag> Renamer<'diag> {
+    pub fn new(diags: &'diag mut Vec<Diagnostic>) -> Renamer<'diag> {
         Renamer {
             val_ctx: EnvMap::new(),
             typ_ctx: EnvMap::new(),
             cons_ctx: EnvMap::new(),
+            diags,
         }
     }
 
@@ -53,41 +57,50 @@ impl Renamer {
         *ident = new;
     }
 
-    fn rename_val_ident(&mut self, ident: &mut Ident) -> RenameResult {
+    fn rename_val_ident(&mut self, ident: &mut Ident, span: Span) -> RenameResult {
         assert!(ident.is_dummy());
         if let Some(res) = self.val_ctx.get(&ident) {
             *ident = *res;
-            Ok(())
         } else {
-            Err("Value variable not in scope!".to_string())
+            self.diags.push(
+                Diagnostic::error("value variable not found!")
+                    .line_span(span, format!("here is the value variable {ident}")),
+            );
         }
+        Ok(())
     }
 
-    fn rename_typ_ident(&mut self, ident: &mut Ident) -> RenameResult {
+    fn rename_typ_ident(&mut self, ident: &mut Ident, span: Span) -> RenameResult {
         assert!(ident.is_dummy());
         if let Some(res) = self.typ_ctx.get(&ident) {
             *ident = *res;
-            Ok(())
         } else {
-            Err("Type variable not in scope!".to_string())
+            self.diags.push(
+                Diagnostic::error("type variable not found!")
+                    .line_span(span, format!("here is the type variable {ident}")),
+            );
         }
+        Ok(())
     }
 
-    fn rename_cons_ident(&mut self, ident: &mut Ident) -> RenameResult {
+    fn rename_cons_ident(&mut self, ident: &mut Ident, span: Span) -> RenameResult {
         assert!(ident.is_dummy());
         if let Some(res) = self.cons_ctx.get(&ident) {
             *ident = *res;
-            Ok(())
         } else {
-            Err("Constructor not in scope!".to_string())
+            self.diags.push(
+                Diagnostic::error("data constructor not found!")
+                    .line_span(span, format!("here is the data constructor {ident}")),
+            );
         }
+        Ok(())
     }
 
     fn rename_expr(&mut self, expr: &mut Expr) -> RenameResult {
         match expr {
             Expr::Lit { lit: _, span: _ } => Ok(()),
-            Expr::Var { ident, span: _ } => {
-                self.rename_val_ident(ident)?;
+            Expr::Var { ident, span } => {
+                self.rename_val_ident(ident, span.clone())?;
                 Ok(())
             }
             Expr::Prim {
@@ -100,12 +113,8 @@ impl Renamer {
                 }
                 Ok(())
             }
-            Expr::Cons {
-                cons,
-                flds,
-                span: _,
-            } => {
-                self.rename_cons_ident(cons)?;
+            Expr::Cons { cons, flds, span } => {
+                self.rename_cons_ident(cons, span.clone())?;
                 for fld in flds.iter_mut() {
                     self.rename_expr(&mut fld.data)?;
                 }
@@ -211,9 +220,9 @@ impl Renamer {
     fn rename_type(&mut self, typ: &mut Type) -> RenameResult {
         match typ {
             Type::Lit { lit: _ } => Ok(()),
-            Type::Var { ident } => self.rename_typ_ident(ident),
+            Type::Var { ident } => self.rename_typ_ident(ident, Span::default()),
             Type::Cons { cons, args } => {
-                self.rename_typ_ident(cons)?;
+                self.rename_typ_ident(cons, Span::default())?;
                 for arg in args.iter_mut() {
                     self.rename_type(arg)?;
                 }
@@ -248,12 +257,8 @@ impl Renamer {
                 self.intro_val_ident(ident);
             }
             Pattern::Lit { lit: _, span: _ } => {}
-            Pattern::Cons {
-                cons,
-                patns,
-                span: _,
-            } => {
-                self.rename_cons_ident(cons)?;
+            Pattern::Cons { cons, patns, span } => {
+                self.rename_cons_ident(cons, span.clone())?;
                 for patn in patns.iter_mut() {
                     self.rename_pattern(&mut patn.data)?;
                 }
@@ -340,13 +345,16 @@ impl Renamer {
     }
 }
 
-pub fn rename_expr(expr: &mut Expr) -> RenameResult {
-    let mut pass = Renamer::new();
+pub fn rename_expr<'diag>(expr: &mut Expr, diags: &'diag mut Vec<Diagnostic>) -> Result<(), ()> {
+    let mut pass = Renamer::new(diags);
     pass.rename_expr(expr)
 }
 
-pub fn rename_module(expr: &mut Module) -> RenameResult {
-    let mut pass = Renamer::new();
+pub fn rename_module<'diag>(
+    expr: &mut Module,
+    diags: &'diag mut Vec<Diagnostic>,
+) -> Result<(), ()> {
+    let mut pass = Renamer::new(diags);
     pass.rename_module(expr)
 }
 
@@ -401,6 +409,6 @@ end
     let mut diags = Vec::new();
     let mut modl = parse_module(s, &mut diags).unwrap();
     assert!(diags.is_empty());
-    rename_module(&mut modl).unwrap();
+    rename_module(&mut modl, &mut diags).unwrap();
     println!("{:#?}", modl);
 }
