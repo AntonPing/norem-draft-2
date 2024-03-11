@@ -1,7 +1,10 @@
 mod examples;
-use norem_lang::backend::evaluate::Value;
 
 #[test]
 fn test_rec_fib() {
-    examples::test_file("RecFib", Value::Int(55))
+    let actual = examples::test_file("RecFib");
+    let expect = expect_test::expect![[r#"
+        Int(55)
+    "#]];
+    expect.assert_eq(&actual)
 }

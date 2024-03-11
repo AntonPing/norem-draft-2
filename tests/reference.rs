@@ -1,7 +1,10 @@
 mod examples;
-use norem_lang::backend::evaluate::Value;
 
 #[test]
 fn test_reference() {
-    examples::test_file("Reference", Value::Int(87))
+    let actual = examples::test_file("Reference");
+    let expect = expect_test::expect![[r#"
+        Int(87)
+    "#]];
+    expect.assert_eq(&actual)
 }

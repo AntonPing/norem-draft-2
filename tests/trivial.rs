@@ -1,7 +1,10 @@
 mod examples;
-use norem_lang::backend::evaluate::Value;
 
 #[test]
 fn test_trivial() {
-    examples::test_file("Trivial", Value::Int(42))
+    let actual = examples::test_file("Trivial");
+    let expect = expect_test::expect![[r#"
+        Int(42)
+    "#]];
+    expect.assert_eq(&actual)
 }

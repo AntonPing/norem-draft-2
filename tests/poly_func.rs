@@ -1,7 +1,10 @@
 mod examples;
-use norem_lang::backend::evaluate::Value;
 
 #[test]
 fn test_poly_func() {
-    examples::test_file("PolyFunc", Value::Int(8))
+    let actual = examples::test_file("PolyFunc");
+    let expect = expect_test::expect![[r#"
+        Int(8)
+    "#]];
+    expect.assert_eq(&actual)
 }

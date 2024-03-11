@@ -8,6 +8,5 @@ pub fn run_cli() {
         .get_matches();
 
     let input = matches.get_one::<String>("input").unwrap();
-    let val = super::command::compile_file(input);
-    println!("{:?}", val);
+    todo!()
 }
