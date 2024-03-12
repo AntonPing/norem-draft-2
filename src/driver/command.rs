@@ -1,8 +1,8 @@
 use crate::analyze::diagnostic::Diagnostic;
 use crate::core::cps;
-use crate::{analyze, backend, core, syntax};
+use crate::{analyze, backend_new, core, syntax};
 use std::path::PathBuf;
-use std::{fs, io};
+use std::{fs, io, vec};
 
 #[derive(Clone, Debug)]
 pub enum Backend {
@@ -47,12 +47,17 @@ where
     let modl = res?;
     match flag.backend {
         Backend::Interp => {
-            let modl = backend::codegen::Codegen::run(&modl);
-            let (code, map) = backend::linking::Linker::run(&modl);
-            let (_, entry) = map.iter().find(|(k, _)| k.as_str() == "main").unwrap();
-            let mut evl = backend::evaluate::Evaluator::new(code, *entry);
-            let val = unsafe { evl.run() };
-            writeln!(cout, "{val:?}")?;
+            let modl = backend_new::lowering::Lowering::run(&modl);
+            println!("{modl:#?}");
+            let entry = modl
+                .funcs
+                .iter()
+                .map(|(name, _)| name)
+                .find(|name| name.as_str() == "main")
+                .unwrap();
+            let mut eval = backend_new::interp::Interpreter::new(&modl);
+            let res = unsafe { eval.run(*entry, vec![backend_new::interp::Value::Unit]) };
+            writeln!(cout, "{res:?}")?;
             Ok(())
         }
     }
