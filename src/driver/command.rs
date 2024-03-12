@@ -1,6 +1,6 @@
 use crate::analyze::diagnostic::Diagnostic;
 use crate::core::cps;
-use crate::{analyze, backend_new, core, syntax};
+use crate::{analyze, backend, core, syntax};
 use std::path::PathBuf;
 use std::{fs, io, vec};
 
@@ -47,7 +47,7 @@ where
     let modl = res?;
     match flag.backend {
         Backend::Interp => {
-            let modl = backend_new::lowering::Lowering::run(&modl);
+            let modl = backend::lowering::Lowering::run(&modl);
             println!("{modl:#?}");
             let entry = modl
                 .funcs
@@ -55,8 +55,8 @@ where
                 .map(|(name, _)| name)
                 .find(|name| name.as_str() == "main")
                 .unwrap();
-            let mut eval = backend_new::interp::Interpreter::new(&modl);
-            let res = unsafe { eval.run(*entry, vec![backend_new::interp::Value::Unit]) };
+            let mut eval = backend::interp::Interpreter::new(&modl);
+            let res = unsafe { eval.run(*entry, vec![backend::interp::Value::Unit]) };
             writeln!(cout, "{res:?}")?;
             Ok(())
         }
