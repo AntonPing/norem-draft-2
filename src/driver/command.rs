@@ -1,18 +1,20 @@
 use crate::analyze::diagnostic::Diagnostic;
-use crate::core::cps;
+use crate::backend::tac;
 use crate::{analyze, backend, core, syntax};
-use std::path::PathBuf;
-use std::{fs, io, vec};
+use std::{fs, io, path, vec};
 
 #[derive(Clone, Debug)]
 pub enum Backend {
     Interp,
+    C,
 }
 
 #[derive(Clone, Debug)]
 pub struct CompilerFlag {
     pub debug_mode: bool,
-    pub verbosity: u8,
+    pub verbose: u8,
+    pub input: Box<path::Path>,
+    pub output: Option<Box<path::Path>>,
     pub backend: Backend,
 }
 
@@ -31,7 +33,7 @@ impl From<io::Error> for CompileError {
 }
 
 pub fn compile_file<T>(
-    path: &PathBuf,
+    path: &path::Path,
     flag: &CompilerFlag,
     cout: &mut T,
 ) -> Result<(), CompileError>
@@ -42,13 +44,11 @@ where
     let mut diags: Vec<Diagnostic> = Vec::new();
     let res = compile_with(&src, flag, &mut diags);
     for diag in diags.iter() {
-        writeln!(cout, "{}", diag.report(&src, flag.verbosity))?;
+        writeln!(cout, "{}", diag.report(&src, flag.verbose))?;
     }
     let modl = res?;
     match flag.backend {
         Backend::Interp => {
-            let modl = backend::lowering::Lowering::run(&modl);
-            println!("{modl:#?}");
             let entry = modl
                 .funcs
                 .iter()
@@ -60,6 +60,15 @@ where
             writeln!(cout, "{res:?}")?;
             Ok(())
         }
+        Backend::C => {
+            let s = backend::codegen_c::Codegen::run(&modl);
+            let out = flag
+                .output
+                .clone()
+                .unwrap_or_else(|| flag.input.clone().with_extension("c").into());
+            fs::write(out, s)?;
+            Ok(())
+        }
     }
 }
 
@@ -67,7 +76,7 @@ pub fn compile_with<'src>(
     src: &'src str,
     flag: &CompilerFlag,
     diags: &mut Vec<Diagnostic>,
-) -> Result<cps::Module, CompileError> {
+) -> Result<tac::Module, CompileError> {
     let mut modl = syntax::parser::parse_module(&src, diags).ok_or(CompileError::SyntaxError)?;
     if flag.debug_mode {
         println!("parser:\n{modl:#?}");
@@ -81,7 +90,7 @@ pub fn compile_with<'src>(
     }
     let modl = core::optimize::Optimizer::run(modl);
     if flag.debug_mode {
-        println!("optimizer:\n{modl}");
+        println!("optimize:\n{modl}");
     }
     let mark = core::inline::InlineScan::run(&modl);
     let modl = core::inline::InlinePerform::run(modl, mark);
@@ -90,7 +99,7 @@ pub fn compile_with<'src>(
     }
     let modl = core::optimize::Optimizer::run(modl);
     if flag.debug_mode {
-        println!("optimizer:\n{modl}");
+        println!("optimize:\n{modl}");
     }
     let modl = core::closure::ClosConv::run(modl);
     if flag.debug_mode {
@@ -98,7 +107,11 @@ pub fn compile_with<'src>(
     }
     let modl = core::optimize::Optimizer::run(modl);
     if flag.debug_mode {
-        println!("optimizer:\n{modl}");
+        println!("optimize:\n{modl}");
+    }
+    let modl = backend::lowering::Lowering::run(&modl);
+    if flag.debug_mode {
+        println!("lowering:\n{modl:?}");
     }
     Ok(modl)
 }

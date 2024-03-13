@@ -9,8 +9,10 @@ pub fn test_file<S: AsRef<path::Path>>(module: S) -> String {
     input.set_extension("nr");
     let flag = command::CompilerFlag {
         debug_mode: false,
-        verbosity: 10,
+        verbose: 10,
         backend: command::Backend::Interp,
+        input: input.clone().into(),
+        output: None,
     };
     let mut cout = tempfile::tempfile().unwrap();
     let _ = command::compile_file(&input, &flag, &mut cout);
