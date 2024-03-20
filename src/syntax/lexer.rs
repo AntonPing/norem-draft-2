@@ -37,6 +37,16 @@ pub enum Token {
     Star,
     #[token("/")]
     Slash,
+    #[token("<")]
+    Less,
+    #[token("<=")]
+    LessEqual,
+    #[token("==")]
+    EqualEqual,
+    #[token(">=")]
+    GreaterEqual,
+    #[token(">")]
+    Greater,
     #[token("^")]
     Caret,
     #[token("&&")]

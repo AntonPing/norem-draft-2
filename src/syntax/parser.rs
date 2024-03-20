@@ -317,6 +317,68 @@ impl<'src, 'diag> Parser<'src, 'diag> {
     }
 
     fn parse_expr(&mut self) -> ParseResult<Expr> {
+        let mut expr_stack: Vec<Expr> = Vec::new();
+        let mut opr_stack: Vec<PrimOpr> = Vec::new();
+
+        fn get_prior(opr: &PrimOpr) -> usize {
+            match opr {
+                PrimOpr::IAdd => 10,
+                PrimOpr::ISub => 10,
+                PrimOpr::IMul => 20,
+                PrimOpr::ICmpLs => 5,
+                PrimOpr::ICmpEq => 5,
+                PrimOpr::ICmpGr => 5,
+            }
+        }
+
+        fn squash(expr_stack: &mut Vec<Expr>, opr_stack: &mut Vec<PrimOpr>) {
+            let expr2 = expr_stack.pop().unwrap();
+            let opr = opr_stack.pop().unwrap();
+            let expr1 = expr_stack.pop().unwrap();
+            let span = Span {
+                start: expr1.get_span().start,
+                end: expr2.get_span().end,
+            };
+            let new_expr = Expr::Prim {
+                prim: opr,
+                args: vec![expr1, expr2],
+                span,
+            };
+            expr_stack.push(new_expr);
+        }
+
+        loop {
+            let expr = self.parse_simple_expr()?;
+            expr_stack.push(expr);
+            let opr = match self.peek_token() {
+                Token::Plus => PrimOpr::IAdd,
+                Token::Minus => PrimOpr::ISub,
+                Token::Star => PrimOpr::IMul,
+                Token::Less => PrimOpr::ICmpLs,
+                Token::EqualEqual => PrimOpr::ICmpEq,
+                Token::Greater => PrimOpr::ICmpGr,
+                _ => {
+                    while !opr_stack.is_empty() {
+                        squash(&mut expr_stack, &mut opr_stack);
+                    }
+                    assert_eq!(expr_stack.len(), 1);
+                    return Ok(expr_stack.pop().unwrap());
+                }
+            };
+            while !opr_stack.is_empty() {
+                let opr2 = opr_stack.last().unwrap();
+                if get_prior(&opr2) > get_prior(&opr) {
+                    squash(&mut expr_stack, &mut opr_stack);
+                } else {
+                    break;
+                }
+            }
+            opr_stack.push(opr);
+            self.next_token()?;
+        }
+    }
+
+    fn parse_simple_expr(&mut self) -> ParseResult<Expr> {
         let start = self.start_pos();
         match self.peek_token() {
             Token::Int | Token::Float | Token::Bool | Token::Char => {
@@ -404,7 +466,7 @@ impl<'src, 'diag> Parser<'src, 'diag> {
             }
             Token::Caret => {
                 self.match_token(Token::Caret)?;
-                let expr = Box::new(self.parse_expr()?);
+                let expr = Box::new(self.parse_simple_expr()?);
                 let end = self.end_pos();
                 let span = Span { start, end };
                 Ok(Expr::RefGet { expr, span })
@@ -785,7 +847,7 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                 }
             });
         let end = self.end_pos();
-        let span = Span { start, end: end };
+        let span = Span { start, end };
         Ok(FuncSign {
             func,
             polys,
@@ -917,7 +979,7 @@ begin
 end
 function g(x: Int) -> Int
 begin
-    let r = @iadd(x, 1);
+    let r = x + 1;
     r
 end
 function id[T](x: T) -> T
