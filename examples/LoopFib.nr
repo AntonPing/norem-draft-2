@@ -4,11 +4,11 @@ begin
     let this = ref 1;
     let last = ref 0;
     let i = ref 1;
-    while @icmpls(^i, n) do
-        let temp = @iadd(^this, ^last);
+    while ^i < n do
+        let temp = ^this + ^last;
         last := ^this;
         this := temp;
-        i := @iadd(^i, 1);
+        i := ^i + 1;
     end;
     ^this
 end

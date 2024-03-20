@@ -7,7 +7,7 @@ function length[T](xs: List[T]) -> Int
 begin
     match xs with
     | Nil => 0
-    | Cons(x, xs) => @iadd(length(xs), 1)
+    | Cons(x, xs) => length(xs) + 1
     end
 end
 function main() -> Int

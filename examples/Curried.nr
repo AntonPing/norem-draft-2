@@ -3,7 +3,7 @@ function main() -> Int
 begin
     let f = fn(x) => begin
         fn(y) => begin
-            @iadd(x,y)
+            x + y
         end
     end;
     let g = f(1);

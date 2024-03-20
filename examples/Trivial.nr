@@ -1,7 +1,7 @@
 module Trivial where
 function add(x: Int, y: Int) -> Int
 begin
-    @iadd(x, y)
+    x + y
 end
 function main() -> Int
 begin

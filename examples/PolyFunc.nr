@@ -10,5 +10,5 @@ function snd[T, U](x: T, y: U) -> U begin
 end
 function main() -> Int
 begin
-    @iadd(id(1), @iadd(fst(2, 3.0), snd(4.0, 5)))
+    id(1) + fst(2, 3.0) + snd(4.0, 5)
 end

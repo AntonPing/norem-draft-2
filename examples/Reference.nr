@@ -6,5 +6,5 @@ begin
     let a = ^r;
     r := 44;
     let b = ^r;
-    @iadd(a, b)
+    a + b
 end
