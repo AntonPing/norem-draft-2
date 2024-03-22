@@ -645,6 +645,7 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                 Ok(Pattern::Cons { cons, patns, span })
             }
             Token::Wild => {
+                self.match_token(Token::Wild)?;
                 let end = self.end_pos();
                 let span = Span { start, end };
                 Ok(Pattern::Wild { span })
