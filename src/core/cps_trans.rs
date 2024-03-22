@@ -8,11 +8,12 @@ use super::pattern::PatnMatrix;
 use crate::core::pattern;
 use crate::syntax::ast::{self, FuncSign, Pattern, Varient};
 use crate::utils::ident::Ident;
-use crate::utils::intern::InternStr;
 
 pub struct Translator {
-    cons_map: HashMap<Ident, Ident>,
-    data_map: HashMap<Ident, Vec<Varient>>,
+    // cons_map: constructor -> (datatype, varient)
+    cons_map: HashMap<Ident, (Ident, Varient)>,
+    // data_map: datatype -> a list of constructors
+    data_map: HashMap<Ident, Vec<Ident>>,
 }
 
 impl Translator {
@@ -37,9 +38,10 @@ impl Translator {
                     vars,
                     span: _,
                 } => {
-                    self.data_map.insert(*ident, vars.clone());
+                    let conss = vars.iter().map(|var| var.cons).collect();
+                    self.data_map.insert(*ident, conss);
                     for var in vars {
-                        self.cons_map.insert(var.cons, *ident);
+                        self.cons_map.insert(var.cons, (*ident, var.clone()));
                     }
                 }
             }
@@ -187,14 +189,16 @@ impl Translator {
                 //              let r = @record(i, x1, ..., xn);
                 //              let hole = move(r);
                 //              rest)...)
-
-                let typ = self.cons_map[cons];
-                let (tag, label_vec): (usize, Vec<InternStr>) = self.data_map[&typ]
+                let (data, var) = &self.cons_map[cons];
+                // get varient tag index
+                let tag = self.data_map[&data]
                     .iter()
                     .enumerate()
-                    .find(|(_, var)| var.cons == *cons)
-                    .map(|(i, var)| (i, var.flds.iter().map(|fld| fld.label).collect()))
-                    .unwrap();
+                    .find(|(_i, cons2)| *cons2 == cons)
+                    .unwrap()
+                    .0;
+                // get varient fields
+                let label_vec: Vec<_> = var.flds.iter().map(|fld| fld.label).collect();
 
                 let xs: Vec<Ident> = label_vec.iter().map(|_| Ident::fresh(&"x")).collect();
                 let r = Ident::fresh(&"r");
@@ -592,19 +596,21 @@ impl Translator {
                 }
                 pattern::ColType::Cons => {
                     let cons_set = mat.get_cons_set(j);
-                    let typ = self.cons_map[&cons_set[0]];
-                    let vars = self.data_map[&typ].clone();
+                    let data = self.cons_map[&cons_set[0]].0;
+                    let conss = self.data_map[&data].clone();
                     for cons in cons_set {
-                        assert!(vars.iter().any(|var| var.cons == cons));
+                        assert!(conss.iter().any(|cons2| *cons2 == cons));
                     }
+
                     let mut brchs: Vec<(usize, cps::Expr)> = Vec::new();
-                    for (i, var) in vars.iter().enumerate() {
-                        let binds = var
+                    for (i, cons) in conss.iter().enumerate() {
+                        let binds = self.cons_map[cons]
+                            .1
                             .flds
                             .iter()
                             .map(|fld| (fld.label, Ident::fresh(&"o")))
                             .collect();
-                        let (new_mat, hits) = mat.specialize_cons(j, &var.cons, &binds);
+                        let (new_mat, hits) = mat.specialize_cons(j, cons, &binds);
 
                         let brch = binds.iter().enumerate().fold(
                             self.normalize_match(&new_mat, decls),
