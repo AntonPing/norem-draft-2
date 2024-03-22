@@ -316,6 +316,7 @@ impl<'src, 'diag> Parser<'src, 'diag> {
         })
     }
 
+    // parse_expr calls parse_expr2, and parse_expr2 calls parse_expr3
     fn parse_expr(&mut self) -> ParseResult<Expr> {
         let mut expr_stack: Vec<Expr> = Vec::new();
         let mut opr_stack: Vec<PrimOpr> = Vec::new();
@@ -332,23 +333,23 @@ impl<'src, 'diag> Parser<'src, 'diag> {
         }
 
         fn squash(expr_stack: &mut Vec<Expr>, opr_stack: &mut Vec<PrimOpr>) {
-            let expr2 = expr_stack.pop().unwrap();
+            let rhs = expr_stack.pop().unwrap();
             let opr = opr_stack.pop().unwrap();
-            let expr1 = expr_stack.pop().unwrap();
+            let lhs = expr_stack.pop().unwrap();
             let span = Span {
-                start: expr1.get_span().start,
-                end: expr2.get_span().end,
+                start: lhs.get_span().start,
+                end: rhs.get_span().end,
             };
             let new_expr = Expr::Prim {
                 prim: opr,
-                args: vec![expr1, expr2],
+                args: vec![lhs, rhs],
                 span,
             };
             expr_stack.push(new_expr);
         }
 
         loop {
-            let expr = self.parse_simple_expr()?;
+            let expr = self.parse_expr2()?;
             expr_stack.push(expr);
             let opr = match self.peek_token() {
                 Token::Plus => PrimOpr::IAdd,
@@ -378,7 +379,31 @@ impl<'src, 'diag> Parser<'src, 'diag> {
         }
     }
 
-    fn parse_simple_expr(&mut self) -> ParseResult<Expr> {
+    fn parse_expr2(&mut self) -> ParseResult<Expr> {
+        let start = self.start_pos();
+        let mut expr = self.parse_expr3()?;
+        loop {
+            match self.peek_token() {
+                Token::LParen => {
+                    let args = self.parse_expr_args()?;
+                    let end = self.end_pos();
+                    let span = Span { start, end };
+                    let new_expr = Expr::App {
+                        func: Box::new(expr),
+                        args,
+                        span,
+                    };
+                    expr = new_expr;
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+        Ok(expr)
+    }
+
+    fn parse_expr3(&mut self) -> ParseResult<Expr> {
         let start = self.start_pos();
         match self.peek_token() {
             Token::Int | Token::Float | Token::Bool | Token::Char => {
@@ -392,16 +417,7 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                 let end = self.end_pos();
                 let span = Span { start, end };
                 let var = Expr::Var { ident, span };
-                if self.peek_token() == Token::LParen {
-                    // for "f(42)" syntax
-                    let func = Box::new(var);
-                    let args = self.parse_expr_args()?;
-                    let end = self.end_pos();
-                    let span = Span { start, end };
-                    Ok(Expr::App { func, args, span })
-                } else {
-                    Ok(var)
-                }
+                Ok(var)
             }
             Token::UpperIdent => {
                 let cons = self.parse_uident()?;
@@ -466,25 +482,13 @@ impl<'src, 'diag> Parser<'src, 'diag> {
             }
             Token::Caret => {
                 self.match_token(Token::Caret)?;
-                let expr = Box::new(self.parse_simple_expr()?);
+                let expr = Box::new(self.parse_expr3()?);
                 let end = self.end_pos();
                 let span = Span { start, end };
                 Ok(Expr::RefGet { expr, span })
             }
             Token::Begin => self.parse_block(Token::Begin),
-            Token::LParen => {
-                let res = self.surround(Token::LParen, Token::RParen, |par| par.parse_expr())?;
-                if self.peek_token() == Token::LParen {
-                    // for "(fn(x) => x)(42)" syntax
-                    let func = Box::new(res);
-                    let args = self.parse_expr_args()?;
-                    let end = self.end_pos();
-                    let span = Span { start, end };
-                    Ok(Expr::App { func, args, span })
-                } else {
-                    Ok(res)
-                }
-            }
+            Token::LParen => self.surround(Token::LParen, Token::RParen, |par| par.parse_expr()),
             _tok => Err(ParseError::FailedToParse(
                 "expression",
                 self.peek_token(),
