@@ -12,8 +12,12 @@ pub fn get_bind_vars(patn: &Pattern) -> Vec<Ident> {
             Pattern::Cons {
                 cons: _,
                 patns,
+                as_ident,
                 span: _,
             } => {
+                if let Some(as_ident) = as_ident {
+                    vec.push(*as_ident);
+                }
                 for patn in patns {
                     aux(vec, &patn.data)
                 }
@@ -139,7 +143,7 @@ impl PatnMatrix {
         (bindings, act)
     }
 
-    // return (new_mat, bindings)
+    // return (new_mat, hits)
     pub fn default(&self, j: usize) -> (PatnMatrix, Vec<Ident>) {
         let objs = remove_nth(&self.objs, j);
         let mut hits: Vec<Ident> = Vec::new();
@@ -228,6 +232,7 @@ impl PatnMatrix {
                 Pattern::Cons {
                     cons: cons2,
                     patns,
+                    as_ident,
                     span,
                 } if *cons2 == *cons => {
                     let patns = labels
@@ -240,6 +245,9 @@ impl PatnMatrix {
                             }
                         })
                         .collect();
+                    if let Some(as_ident) = as_ident {
+                        hits.push(*as_ident)
+                    }
                     let new_row = insert_nth(row, j, &patns);
                     Some((new_row, *act))
                 }

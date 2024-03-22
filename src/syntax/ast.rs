@@ -184,6 +184,7 @@ pub enum Pattern {
     Cons {
         cons: Ident,
         patns: Vec<Labeled<Pattern>>,
+        as_ident: Option<Ident>,
         span: Span,
     },
     Wild {

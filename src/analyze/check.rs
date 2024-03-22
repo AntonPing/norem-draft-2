@@ -265,7 +265,15 @@ impl<'diag> TypeChecker<'diag> {
                 self.unify(&UnifyType::Lit(lit.get_lit_type()), lhs);
                 Ok(())
             }
-            Pattern::Cons { cons, patns, span } => {
+            Pattern::Cons {
+                cons,
+                patns,
+                as_ident,
+                span,
+            } => {
+                if let Some(as_ident) = as_ident {
+                    self.val_ctx.insert(*as_ident, (Vec::new(), lhs.clone()));
+                }
                 if let Some((polys, args, res)) = self.cons_ctx.get(cons).cloned() {
                     let map = self.solver.make_instantiate_map(&polys);
                     for arg in args.iter() {

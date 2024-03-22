@@ -257,8 +257,16 @@ impl<'diag> Renamer<'diag> {
                 self.intro_val_ident(ident);
             }
             Pattern::Lit { lit: _, span: _ } => {}
-            Pattern::Cons { cons, patns, span } => {
+            Pattern::Cons {
+                cons,
+                patns,
+                as_ident,
+                span,
+            } => {
                 self.rename_cons_ident(cons, span.clone())?;
+                if let Some(as_ident) = as_ident {
+                    self.intro_val_ident(as_ident);
+                }
                 for patn in patns.iter_mut() {
                     self.rename_pattern(&mut patn.data)?;
                 }

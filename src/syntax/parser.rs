@@ -640,9 +640,18 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                         span,
                     }),
                 )?;
+                let as_ident = self.option(|par| {
+                    par.match_token(Token::As)?;
+                    par.parse_lident()
+                })?;
                 let end = self.end_pos();
                 let span = Span { start, end };
-                Ok(Pattern::Cons { cons, patns, span })
+                Ok(Pattern::Cons {
+                    cons,
+                    patns,
+                    as_ident,
+                    span,
+                })
             }
             Token::Wild => {
                 self.match_token(Token::Wild)?;

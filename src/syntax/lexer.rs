@@ -77,6 +77,8 @@ pub enum Token {
     Case,
     #[token("of")]
     Of,
+    #[token("as")]
+    As,
     #[token("begin")]
     Begin,
     #[token("end")]
