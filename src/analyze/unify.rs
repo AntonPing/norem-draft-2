@@ -141,19 +141,6 @@ impl UnifySolver {
             other => other.clone(),
         }
     }
-
-    pub fn instantiate(&mut self, polys: &Vec<Ident>, typ: &UnifyType) -> UnifyType {
-        if polys.is_empty() {
-            typ.clone()
-        } else {
-            let map = self.make_instantiate_map(polys);
-            substitute(&map, typ)
-        }
-    }
-
-    pub fn make_instantiate_map(&mut self, polys: &Vec<Ident>) -> HashMap<Ident, usize> {
-        polys.iter().map(|poly| (*poly, self.new_cell())).collect()
-    }
 }
 
 pub fn substitute(map: &HashMap<Ident, usize>, typ: &UnifyType) -> UnifyType {

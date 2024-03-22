@@ -6,9 +6,24 @@ use std::ops::Deref;
 
 use super::diagnostic::Diagnostic;
 
+#[derive(Clone, Debug)]
+struct ValType {
+    polys: Vec<Ident>,
+    typ: UnifyType,
+}
+
+#[derive(Clone, Debug)]
+struct ConsType {
+    polys: Vec<Ident>,
+    pars: Vec<Labeled<UnifyType>>,
+    res: UnifyType,
+}
+
 struct TypeChecker<'diag> {
-    val_ctx: HashMap<Ident, (Vec<Ident>, UnifyType)>,
-    cons_ctx: HashMap<Ident, (Vec<Ident>, Vec<Labeled<UnifyType>>, UnifyType)>,
+    val_ctx: HashMap<Ident, ValType>,
+    cons_ctx: HashMap<Ident, ConsType>,
+    data_ctx: HashMap<Ident, Vec<Ident>>,
+    as_bind: HashMap<Ident, Ident>,
     solver: UnifySolver,
     diags: &'diag mut Vec<Diagnostic>,
 }
@@ -20,6 +35,8 @@ impl<'diag> TypeChecker<'diag> {
         TypeChecker {
             val_ctx: HashMap::new(),
             cons_ctx: HashMap::new(),
+            data_ctx: HashMap::new(),
+            as_bind: HashMap::new(),
             solver: UnifySolver::new(),
             diags,
         }
@@ -48,6 +65,51 @@ impl<'diag> TypeChecker<'diag> {
         }
     }
 
+    fn make_instantiate_map(&mut self, polys: &Vec<Ident>) -> HashMap<Ident, usize> {
+        polys
+            .iter()
+            .map(|poly| (*poly, self.solver.new_cell()))
+            .collect()
+    }
+
+    fn instantiate_val(&mut self, val: &ValType) -> UnifyType {
+        if val.polys.is_empty() {
+            val.typ.clone()
+        } else {
+            let map = self.make_instantiate_map(&val.polys);
+            unify::substitute(&map, &val.typ)
+        }
+    }
+
+    fn instantiate_cons(&mut self, cons: &ConsType) -> (Vec<Labeled<UnifyType>>, UnifyType) {
+        if cons.polys.is_empty() {
+            (cons.pars.clone(), cons.res.clone())
+        } else {
+            let map = self.make_instantiate_map(&cons.polys);
+            let pars = cons
+                .pars
+                .iter()
+                .map(|par| Labeled {
+                    label: par.label,
+                    data: unify::substitute(&map, &par.data),
+                    span: par.span.clone(),
+                })
+                .collect();
+            let res = unify::substitute(&map, &cons.res);
+            (pars, res)
+        }
+    }
+
+    fn intro_val(&mut self, ident: &Ident, typ: UnifyType) {
+        self.val_ctx.insert(
+            *ident,
+            ValType {
+                polys: Vec::new(),
+                typ,
+            },
+        );
+    }
+
     fn check_expr(&mut self, expr: &Expr) -> CheckResult<UnifyType> {
         match expr {
             Expr::Lit { lit, span: _ } => {
@@ -55,11 +117,11 @@ impl<'diag> TypeChecker<'diag> {
                 Ok(typ)
             }
             Expr::Var { ident, span: _ } => {
-                if let Some((polys, typ)) = self.val_ctx.get(&ident) {
-                    Ok(self.solver.instantiate(polys, typ))
+                if let Some(val_ty) = self.val_ctx.get(&ident).cloned() {
+                    Ok(self.instantiate_val(&val_ty))
                 } else {
                     // the error reporting part should be in renamer
-                    Ok(self.fresh())
+                    panic!("value variable not in context!")
                 }
             }
             Expr::Prim { prim, args, span } => {
@@ -96,25 +158,23 @@ impl<'diag> TypeChecker<'diag> {
                 }
             }
             Expr::Cons { cons, flds, span } => {
-                if let Some((polys, args, res)) = self.cons_ctx.get(cons).cloned() {
-                    let map = self.solver.make_instantiate_map(&polys).clone();
-                    let res = unify::substitute(&map, &res);
-                    for arg in args.iter() {
-                        if let Some(fld) = flds.iter().find(|fld| fld.label == arg.label) {
-                            let typ1 = self.check_expr(&fld.data)?;
-                            let typ2 = unify::substitute(&map, &arg.data);
-                            self.unify(&typ1, &typ2);
+                if let Some(cons_ty) = self.cons_ctx.get(cons).cloned() {
+                    let (pars, res) = self.instantiate_cons(&cons_ty);
+                    for par in pars.iter() {
+                        if let Some(fld) = flds.iter().find(|fld| fld.label == par.label) {
+                            let typ = self.check_expr(&fld.data)?;
+                            self.unify(&typ, &par.data);
                         } else {
                             self.diags.push(
                                 Diagnostic::error("constructor label missing!").line_span(
                                     span.clone(),
-                                    format!("label {} is missing!", arg.label),
+                                    format!("label {} is missing!", par.label),
                                 ),
                             );
                         }
                     }
                     for fld in flds {
-                        if args.iter().find(|arg| fld.label == arg.label).is_none() {
+                        if pars.iter().find(|par| fld.label == par.label).is_none() {
                             self.diags.push(
                                 Diagnostic::error("constructor label not defined!").line_span(
                                     span.clone(),
@@ -126,7 +186,7 @@ impl<'diag> TypeChecker<'diag> {
                     Ok(res)
                 } else {
                     // the error reporting part should be in renamer
-                    Ok(self.fresh())
+                    panic!("constructor not in context!")
                 }
             }
             Expr::Func {
@@ -138,7 +198,7 @@ impl<'diag> TypeChecker<'diag> {
                     .iter()
                     .map(|par| {
                         let cell = self.fresh();
-                        self.val_ctx.insert(*par, (Vec::new(), cell.clone()));
+                        self.intro_val(par, cell.clone());
                         cell
                     })
                     .collect();
@@ -211,13 +271,13 @@ impl<'diag> TypeChecker<'diag> {
                     expr,
                     span: _,
                 } => {
-                    let ty = self.check_expr(expr)?;
-                    if let Some(ty_anno) = ty_anno {
-                        self.unify(&ty, &ty_anno.into());
+                    let typ = self.check_expr(expr)?;
+                    if let Some(typ_anno) = ty_anno {
+                        self.unify(&typ, &typ_anno.into());
                     }
-                    self.val_ctx.insert(*ident, (Vec::new(), ty));
-                    let res_ty = self.check_expr(cont)?;
-                    Ok(res_ty)
+                    self.intro_val(ident, typ);
+                    let res = self.check_expr(cont)?;
+                    Ok(res)
                 }
                 Stmt::Assign { lhs, rhs, span: _ } => {
                     let lhs = self.check_expr(lhs)?;
@@ -258,7 +318,7 @@ impl<'diag> TypeChecker<'diag> {
     fn check_pattern(&mut self, patn: &Pattern, lhs: &UnifyType) -> CheckResult<()> {
         match patn {
             Pattern::Var { ident, span: _ } => {
-                self.val_ctx.insert(*ident, (Vec::new(), lhs.clone()));
+                self.intro_val(ident, lhs.clone());
                 Ok(())
             }
             Pattern::Lit { lit, span: _ } => {
@@ -272,25 +332,25 @@ impl<'diag> TypeChecker<'diag> {
                 span,
             } => {
                 if let Some(as_ident) = as_ident {
-                    self.val_ctx.insert(*as_ident, (Vec::new(), lhs.clone()));
+                    self.intro_val(as_ident, lhs.clone());
+                    self.as_bind.insert(*as_ident, *cons);
                 }
-                if let Some((polys, args, res)) = self.cons_ctx.get(cons).cloned() {
-                    let map = self.solver.make_instantiate_map(&polys);
-                    for arg in args.iter() {
-                        if let Some(patn) = patns.iter().find(|patn| patn.label == arg.label) {
-                            let typ = unify::substitute(&map, &arg.data);
-                            self.check_pattern(&patn.data, &typ)?;
+                if let Some(cons_ty) = self.cons_ctx.get(cons).cloned() {
+                    let (pars, res) = self.instantiate_cons(&cons_ty);
+                    for par in pars.iter() {
+                        if let Some(patn) = patns.iter().find(|patn| patn.label == par.label) {
+                            self.check_pattern(&patn.data, &par.data)?;
                         } else {
                             self.diags.push(
                                 Diagnostic::error("constructor label missing!").line_span(
                                     span.clone(),
-                                    format!("label {} is missing!", arg.label),
+                                    format!("label {} is missing!", par.label),
                                 ),
                             );
                         }
                     }
                     for patn in patns.iter() {
-                        if args.iter().find(|arg| patn.label == arg.label).is_none() {
+                        if pars.iter().find(|arg| patn.label == arg.label).is_none() {
                             self.diags.push(
                                 Diagnostic::error("constructor label not defined!").line_span(
                                     span.clone(),
@@ -299,7 +359,6 @@ impl<'diag> TypeChecker<'diag> {
                             );
                         }
                     }
-                    let res = unify::substitute(&map, &res);
                     self.unify(&res, lhs);
                     Ok(())
                 } else {
@@ -326,7 +385,7 @@ impl<'diag> TypeChecker<'diag> {
                 span: _,
             } => {
                 for (par, typ) in pars {
-                    self.val_ctx.insert(*par, (Vec::new(), typ.into()));
+                    self.intro_val(par, typ.into());
                 }
                 let res_ty = self.check_expr(body)?;
                 self.unify(&res_ty, &res.into());
@@ -356,7 +415,13 @@ impl<'diag> TypeChecker<'diag> {
                         pars.iter().map(|(par, typ)| (par, typ.into())).unzip();
                     let res_ty: UnifyType = res.into();
                     let func_ty = UnifyType::Func(par_tys, Box::new(res_ty));
-                    self.val_ctx.insert(*func, (polys.clone(), func_ty));
+                    self.val_ctx.insert(
+                        *func,
+                        ValType {
+                            polys: polys.clone(),
+                            typ: func_ty,
+                        },
+                    );
                 }
                 Decl::Data {
                     ident,
@@ -368,6 +433,7 @@ impl<'diag> TypeChecker<'diag> {
                         *ident,
                         polys.iter().map(|poly| UnifyType::Var(*poly)).collect(),
                     );
+
                     for var in vars {
                         let flds = var
                             .flds
@@ -381,9 +447,17 @@ impl<'diag> TypeChecker<'diag> {
                                 }
                             })
                             .collect();
-                        self.cons_ctx
-                            .insert(var.cons, (polys.clone(), flds, res.clone()));
+                        self.cons_ctx.insert(
+                            var.cons,
+                            ConsType {
+                                polys: polys.clone(),
+                                pars: flds,
+                                res: res.clone(),
+                            },
+                        );
                     }
+                    self.data_ctx
+                        .insert(*ident, vars.iter().map(|var| var.cons).collect());
                 }
             }
         }
