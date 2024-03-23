@@ -9,6 +9,7 @@ struct Renamer<'diag> {
     val_ctx: EnvMap<Ident, Ident>,
     typ_ctx: EnvMap<Ident, Ident>,
     cons_ctx: EnvMap<Ident, Ident>,
+    data_ctx: EnvMap<Ident, Ident>,
     diags: &'diag mut Vec<Diagnostic>,
 }
 
@@ -20,6 +21,7 @@ impl<'diag> Renamer<'diag> {
             val_ctx: EnvMap::new(),
             typ_ctx: EnvMap::new(),
             cons_ctx: EnvMap::new(),
+            data_ctx: EnvMap::new(),
             diags,
         }
     }
@@ -28,12 +30,14 @@ impl<'diag> Renamer<'diag> {
         self.val_ctx.enter_scope();
         self.typ_ctx.enter_scope();
         self.cons_ctx.enter_scope();
+        self.data_ctx.enter_scope();
     }
 
     fn leave_scope(&mut self) {
         self.val_ctx.leave_scope();
         self.typ_ctx.leave_scope();
         self.cons_ctx.leave_scope();
+        self.data_ctx.leave_scope();
     }
 
     fn intro_val_ident(&mut self, ident: &mut Ident) {
@@ -54,6 +58,13 @@ impl<'diag> Renamer<'diag> {
         assert!(ident.is_dummy());
         let new = ident.uniquify();
         self.cons_ctx.insert(*ident, new);
+        *ident = new;
+    }
+
+    fn intro_data_ident(&mut self, ident: &mut Ident) {
+        assert!(ident.is_dummy());
+        let new = ident.uniquify();
+        self.data_ctx.insert(*ident, new);
         *ident = new;
     }
 
@@ -91,6 +102,19 @@ impl<'diag> Renamer<'diag> {
             self.diags.push(
                 Diagnostic::error("data constructor not found!")
                     .line_span(span, format!("here is the data constructor {ident}")),
+            );
+        }
+        Ok(())
+    }
+
+    fn rename_data_ident(&mut self, ident: &mut Ident, span: Span) -> RenameResult {
+        assert!(ident.is_dummy());
+        if let Some(res) = self.data_ctx.get(&ident) {
+            *ident = *res;
+        } else {
+            self.diags.push(
+                Diagnostic::error("data type not found!")
+                    .line_span(span, format!("here is the data type {ident}")),
             );
         }
         Ok(())
@@ -220,9 +244,23 @@ impl<'diag> Renamer<'diag> {
     fn rename_type(&mut self, typ: &mut Type) -> RenameResult {
         match typ {
             Type::Lit { lit: _, span: _ } => Ok(()),
-            Type::Var { ident, span } => self.rename_typ_ident(ident, span.clone()),
+            Type::Var { ident, span } => {
+                if self.data_ctx.contains_key(&ident) {
+                    // it's impossible to decide whether a Type::Var is really a type variable in parser
+                    // it could also be a datatype construction with zero argument
+                    // so we can only lookup the context and elaborate it in renaming pass
+                    *typ = Type::Cons {
+                        cons: *ident,
+                        args: Vec::new(),
+                        span: span.clone(),
+                    };
+                    self.rename_type(typ)
+                } else {
+                    self.rename_typ_ident(ident, span.clone())
+                }
+            }
             Type::Cons { cons, args, span } => {
-                self.rename_typ_ident(cons, span.clone())?;
+                self.rename_data_ident(cons, span.clone())?;
                 for arg in args.iter_mut() {
                     self.rename_type(arg)?;
                 }
@@ -338,7 +376,7 @@ impl<'diag> Renamer<'diag> {
                     vars,
                     span: _,
                 } => {
-                    self.intro_typ_ident(ident);
+                    self.intro_data_ident(ident);
                     for var in vars.iter_mut() {
                         self.intro_cons_ident(&mut var.cons);
                     }
