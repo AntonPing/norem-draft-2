@@ -247,6 +247,7 @@ impl<'diag> TypeChecker<'diag> {
                 }
                 Ok(rhs)
             }
+            Expr::Field { .. } => todo!(),
             Expr::NewRef { expr, span: _ } => {
                 let typ = self.check_expr(expr)?;
                 Ok(UnifyType::Cons(Ident::dummy(&"Ref"), vec![typ]))

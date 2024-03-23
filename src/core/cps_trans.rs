@@ -410,6 +410,7 @@ impl Translator {
                 };
                 self.translate_expr(expr, obj, rest)
             }
+            ast::Expr::Field { .. } => todo!(),
             ast::Expr::NewRef { expr, span: _ } => {
                 //  normalize(ref e, bind, rest) =
                 //  normalize(e, x,

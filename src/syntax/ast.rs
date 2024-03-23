@@ -118,6 +118,12 @@ pub enum Expr {
         rules: Vec<Rule>,
         span: Span,
     },
+    Field {
+        expr: Box<Expr>,
+        field: InternStr,
+        cons_info: Option<Ident>,
+        span: Span,
+    },
     NewRef {
         expr: Box<Expr>,
         span: Span,
@@ -234,6 +240,7 @@ impl Expr {
             Expr::App { span, .. } => span,
             Expr::Ifte { span, .. } => span,
             Expr::Case { span, .. } => span,
+            Expr::Field { span, .. } => span,
             Expr::NewRef { span, .. } => span,
             Expr::RefGet { span, .. } => span,
             Expr::Stmt { span, .. } => span,

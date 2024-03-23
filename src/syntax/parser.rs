@@ -395,6 +395,19 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                     };
                     expr = new_expr;
                 }
+                Token::Dot => {
+                    self.match_token(Token::Dot)?;
+                    let field = self.parse_llabel()?;
+                    let end = self.end_pos();
+                    let span = Span { start, end };
+                    let new_expr = Expr::Field {
+                        expr: Box::new(expr),
+                        field,
+                        cons_info: None,
+                        span,
+                    };
+                    expr = new_expr;
+                }
                 _ => {
                     break;
                 }

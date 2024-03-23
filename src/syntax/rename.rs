@@ -190,6 +190,15 @@ impl<'diag> Renamer<'diag> {
                 }
                 Ok(())
             }
+            Expr::Field {
+                expr,
+                field: _,
+                cons_info: _,
+                span: _,
+            } => {
+                self.rename_expr(expr)?;
+                Ok(())
+            }
             Expr::NewRef { expr, span: _ } => {
                 self.rename_expr(expr)?;
                 Ok(())
