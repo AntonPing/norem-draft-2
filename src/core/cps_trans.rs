@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::iter;
 use std::ops::Deref;
 
+use itertools::Itertools;
+
 use super::cps::{self, Atom, ContDecl, PrimOpr};
 use super::pattern::PatnMatrix;
 
@@ -410,7 +412,36 @@ impl Translator {
                 };
                 self.translate_expr(expr, obj, rest)
             }
-            ast::Expr::Field { .. } => todo!(),
+            ast::Expr::Field {
+                expr,
+                field,
+                cons_info,
+                span: _,
+            } => {
+                //  normalize(e.a, bind, rest) =
+                //  normalize(e, x,
+                //      let bind = load x (i+1);
+                //      rest)
+                //  (* where i is the index of field a, which is solved in type checker *)
+                let i = self.cons_map[&cons_info.unwrap()]
+                    .1
+                    .flds
+                    .iter()
+                    .find_position(|fld2| fld2.label == *field)
+                    .unwrap()
+                    .0;
+                let x = Ident::fresh(&"x");
+                self.translate_expr(
+                    expr,
+                    x,
+                    cps::Expr::Prim {
+                        bind,
+                        prim: PrimOpr::Load,
+                        args: vec![Atom::Var(x), Atom::Int((i + 1) as i64)],
+                        rest: Box::new(rest),
+                    },
+                )
+            }
             ast::Expr::NewRef { expr, span: _ } => {
                 //  normalize(ref e, bind, rest) =
                 //  normalize(e, x,

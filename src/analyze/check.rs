@@ -2,7 +2,7 @@ use crate::analyze::unify::{self, UnifySolver, UnifyType};
 use crate::syntax::ast::*;
 use crate::utils::ident::Ident;
 use std::collections::HashMap;
-use std::ops::Deref;
+use std::ops::DerefMut;
 
 use super::diagnostic::Diagnostic;
 
@@ -110,7 +110,7 @@ impl<'diag> TypeChecker<'diag> {
         );
     }
 
-    fn check_expr(&mut self, expr: &Expr) -> CheckResult<UnifyType> {
+    fn check_expr(&mut self, expr: &mut Expr) -> CheckResult<UnifyType> {
         match expr {
             Expr::Lit { lit, span: _ } => {
                 let typ = UnifyType::Lit(lit.get_lit_type());
@@ -142,16 +142,16 @@ impl<'diag> TypeChecker<'diag> {
                 }
                 match prim {
                     PrimOpr::IAdd | PrimOpr::ISub | PrimOpr::IMul => {
-                        let arg0 = self.check_expr(&args[0])?;
+                        let arg0 = self.check_expr(&mut args[0])?;
                         self.unify(&arg0, &UnifyType::Lit(LitType::TyInt));
-                        let arg1 = self.check_expr(&args[1])?;
+                        let arg1 = self.check_expr(&mut args[1])?;
                         self.unify(&arg1, &UnifyType::Lit(LitType::TyInt));
                         Ok(UnifyType::Lit(LitType::TyInt))
                     }
                     PrimOpr::ICmpLs | PrimOpr::ICmpEq | PrimOpr::ICmpGr => {
-                        let arg0 = self.check_expr(&args[0])?;
+                        let arg0 = self.check_expr(&mut args[0])?;
                         self.unify(&arg0, &UnifyType::Lit(LitType::TyInt));
-                        let arg1 = self.check_expr(&args[1])?;
+                        let arg1 = self.check_expr(&mut args[1])?;
                         self.unify(&arg1, &UnifyType::Lit(LitType::TyInt));
                         Ok(UnifyType::Lit(LitType::TyBool))
                     }
@@ -161,8 +161,8 @@ impl<'diag> TypeChecker<'diag> {
                 if let Some(cons_ty) = self.cons_ctx.get(cons).cloned() {
                     let (pars, res) = self.instantiate_cons(&cons_ty);
                     for par in pars.iter() {
-                        if let Some(fld) = flds.iter().find(|fld| fld.label == par.label) {
-                            let typ = self.check_expr(&fld.data)?;
+                        if let Some(fld) = flds.iter_mut().find(|fld| fld.label == par.label) {
+                            let typ = self.check_expr(&mut fld.data)?;
                             self.unify(&typ, &par.data);
                         } else {
                             self.diags.push(
@@ -212,7 +212,7 @@ impl<'diag> TypeChecker<'diag> {
             } => {
                 let func_ty = self.check_expr(func)?;
                 let args_ty = args
-                    .iter()
+                    .iter_mut()
                     .map(|arg| self.check_expr(arg))
                     .collect::<CheckResult<Vec<_>>>()?;
                 let res_ty = self.fresh();
@@ -242,12 +242,57 @@ impl<'diag> TypeChecker<'diag> {
             } => {
                 let lhs = self.check_expr(expr)?;
                 let rhs = self.fresh();
-                for rule in rules.iter() {
+                for rule in rules.iter_mut() {
                     self.check_rule(rule, &lhs, &rhs)?;
                 }
                 Ok(rhs)
             }
-            Expr::Field { .. } => todo!(),
+            Expr::Field {
+                expr,
+                field,
+                cons_info,
+                span,
+            } => {
+                assert!(cons_info.is_none());
+                let typ = self.check_expr(expr)?;
+
+                // rule 1: if it was as-binded in pattern matching, allow to access
+                if let Expr::Var { ident, span: _ } = expr.deref_mut() {
+                    if let Some(cons) = self.as_bind.get(ident).cloned() {
+                        let cons_ty = self.cons_ctx[&cons].clone();
+                        let (pars, res) = self.instantiate_cons(&cons_ty);
+                        self.unify(&typ, &res);
+                        let par = pars.iter().find(|par| par.label == *field);
+                        if let Some(par) = par {
+                            *cons_info = Some(cons);
+                            return Ok(par.data.clone());
+                        }
+                    }
+                }
+
+                // rule 2: if the datatype is infered, and contains only one varient, allow to access
+                let typ = self.solver.merge(&typ);
+                if let UnifyType::Cons(data, _) = typ {
+                    let conss = self.data_ctx[&data].clone();
+                    if conss.len() == 1 {
+                        let cons = conss[0];
+                        let cons_ty = self.cons_ctx[&cons].clone();
+                        let (pars, res) = self.instantiate_cons(&cons_ty);
+                        self.unify(&typ, &res);
+                        let par = pars.iter().find(|par| par.label == *field);
+                        if let Some(par) = par {
+                            *cons_info = Some(cons);
+                            return Ok(par.data.clone());
+                        }
+                    }
+                }
+
+                self.diags.push(
+                    Diagnostic::error("cannot infer field access constructor!")
+                        .line_span(span.clone(), "here is the field access"),
+                );
+                Err("cannot infer field access constructor!".to_string())
+            }
             Expr::NewRef { expr, span: _ } => {
                 let typ = self.check_expr(expr)?;
                 Ok(UnifyType::Cons(Ident::dummy(&"Ref"), vec![typ]))
@@ -265,7 +310,7 @@ impl<'diag> TypeChecker<'diag> {
                 stmt,
                 cont,
                 span: _,
-            } => match stmt.deref() {
+            } => match stmt.deref_mut() {
                 Stmt::Let {
                     ident,
                     typ: ty_anno,
@@ -274,7 +319,7 @@ impl<'diag> TypeChecker<'diag> {
                 } => {
                     let typ = self.check_expr(expr)?;
                     if let Some(typ_anno) = ty_anno {
-                        self.unify(&typ, &typ_anno.into());
+                        self.unify(&typ, &<UnifyType as From<&Type>>::from(typ_anno));
                     }
                     self.intro_val(ident, typ);
                     let res = self.check_expr(cont)?;
@@ -309,14 +354,14 @@ impl<'diag> TypeChecker<'diag> {
         }
     }
 
-    fn check_rule(&mut self, rule: &Rule, lhs: &UnifyType, rhs: &UnifyType) -> CheckResult<()> {
-        self.check_pattern(&rule.patn, lhs)?;
-        let typ = self.check_expr(&rule.body)?;
+    fn check_rule(&mut self, rule: &mut Rule, lhs: &UnifyType, rhs: &UnifyType) -> CheckResult<()> {
+        self.check_pattern(&mut rule.patn, lhs)?;
+        let typ = self.check_expr(&mut rule.body)?;
         self.unify(&typ, rhs);
         Ok(())
     }
 
-    fn check_pattern(&mut self, patn: &Pattern, lhs: &UnifyType) -> CheckResult<()> {
+    fn check_pattern(&mut self, patn: &mut Pattern, lhs: &UnifyType) -> CheckResult<()> {
         match patn {
             Pattern::Var { ident, span: _ } => {
                 self.intro_val(ident, lhs.clone());
@@ -339,8 +384,8 @@ impl<'diag> TypeChecker<'diag> {
                 if let Some(cons_ty) = self.cons_ctx.get(cons).cloned() {
                     let (pars, res) = self.instantiate_cons(&cons_ty);
                     for par in pars.iter() {
-                        if let Some(patn) = patns.iter().find(|patn| patn.label == par.label) {
-                            self.check_pattern(&patn.data, &par.data)?;
+                        if let Some(patn) = patns.iter_mut().find(|patn| patn.label == par.label) {
+                            self.check_pattern(&mut patn.data, &par.data)?;
                         } else {
                             self.diags.push(
                                 Diagnostic::error("constructor label missing!").line_span(
@@ -371,7 +416,7 @@ impl<'diag> TypeChecker<'diag> {
         }
     }
 
-    fn check_decl(&mut self, decl: &Decl) -> CheckResult<()> {
+    fn check_decl(&mut self, decl: &mut Decl) -> CheckResult<()> {
         match decl {
             Decl::Func {
                 sign:
@@ -386,19 +431,19 @@ impl<'diag> TypeChecker<'diag> {
                 span: _,
             } => {
                 for (par, typ) in pars {
-                    self.intro_val(par, typ.into());
+                    self.intro_val(par, <UnifyType as From<&Type>>::from(typ));
                 }
                 let res_ty = self.check_expr(body)?;
-                self.unify(&res_ty, &res.into());
+                self.unify(&res_ty, &<UnifyType as From<&Type>>::from(res));
                 Ok(())
             }
             Decl::Data { .. } => Ok(()),
         }
     }
 
-    fn check_module(&mut self, modl: &Module) -> CheckResult<()> {
+    fn check_module(&mut self, modl: &mut Module) -> CheckResult<()> {
         let Module { name: _, decls } = modl;
-        for decl in decls {
+        for decl in decls.iter() {
             match decl {
                 Decl::Func {
                     sign:
@@ -434,7 +479,6 @@ impl<'diag> TypeChecker<'diag> {
                         *ident,
                         polys.iter().map(|poly| UnifyType::Var(*poly)).collect(),
                     );
-
                     for var in vars {
                         let flds = var
                             .flds
@@ -462,20 +506,26 @@ impl<'diag> TypeChecker<'diag> {
                 }
             }
         }
-        for decl in decls {
+        for decl in decls.iter_mut() {
             self.check_decl(decl)?;
         }
         Ok(())
     }
 }
 
-pub fn check_expr<'diag>(expr: &Expr, diags: &'diag mut Vec<Diagnostic>) -> CheckResult<UnifyType> {
+pub fn check_expr<'diag>(
+    expr: &mut Expr,
+    diags: &'diag mut Vec<Diagnostic>,
+) -> CheckResult<UnifyType> {
     let mut pass = TypeChecker::new(diags);
     let res = pass.check_expr(expr)?;
     Ok(pass.solver.merge(&res))
 }
 
-pub fn check_module<'diag>(modl: &Module, diags: &'diag mut Vec<Diagnostic>) -> CheckResult<()> {
+pub fn check_module<'diag>(
+    modl: &mut Module,
+    diags: &'diag mut Vec<Diagnostic>,
+) -> CheckResult<()> {
     let mut pass = TypeChecker::new(diags);
     pass.check_module(modl)?;
     Ok(())
@@ -534,7 +584,7 @@ end
     println!("{:#?}", &modl);
     crate::syntax::rename::rename_module(&mut modl, &mut diags).unwrap();
     println!("{:#?}", &modl);
-    check_module(&modl, &mut diags).unwrap();
+    check_module(&mut modl, &mut diags).unwrap();
     for diag in diags {
         println!("{}", diag.report(s, 10));
     }

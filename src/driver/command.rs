@@ -82,7 +82,7 @@ pub fn compile_with<'src>(
         println!("parser:\n{modl:#?}");
     }
     syntax::rename::rename_module(&mut modl, diags).map_err(|_| CompileError::ScopeError)?;
-    analyze::check::check_module(&modl, diags).map_err(|_| CompileError::SemanticError)?;
+    analyze::check::check_module(&mut modl, diags).map_err(|_| CompileError::SemanticError)?;
 
     let modl = core::cps_trans::Translator::run(&modl);
     if flag.debug_mode {
