@@ -501,7 +501,7 @@ impl Translator {
                         self.translate_expr(expr, *ident, cont)
                     }
                     ast::Stmt::RefSet { lhs, rhs, span: _ } => {
-                        //  normalize(lhs := rhs; e, bind, rest) =
+                        //  normalize(lhs <- rhs; e, bind, rest) =
                         //  normalize(lhs, r,
                         //      normalize(rhs, v,
                         //          let _ = store r 0 v;
@@ -518,7 +518,45 @@ impl Translator {
                         let temp = self.translate_expr(rhs, v, inner);
                         self.translate_expr(lhs, r, temp)
                     }
-                    ast::Stmt::Assign { .. } => todo!(),
+                    ast::Stmt::Assign { lhs, rhs, span: _ } => {
+                        //  normalize(e1.a := e2; e3, bind, rest) =
+                        //  normalize(e1, r,
+                        //      normalize(e2, v,
+                        //          let _ = update r (i+1) v;
+                        //          normalize(e3, bind, rest)))
+                        //  (* where i is the index of field a, which is solved in type checker *)
+
+                        let r = Ident::fresh(&"r");
+                        let v = Ident::fresh(&"v");
+                        let wild = Ident::fresh(&"_");
+
+                        let ast::Expr::Field {
+                            expr,
+                            field,
+                            cons_info,
+                            span: _,
+                        } = lhs
+                        else {
+                            panic!("field access check with a non-field-access expression!")
+                        };
+
+                        let i = self.cons_map[&cons_info.unwrap()]
+                            .1
+                            .flds
+                            .iter()
+                            .find_position(|fld2| fld2.label == *field)
+                            .unwrap()
+                            .0;
+
+                        let inner = cps::Expr::Prim {
+                            bind: wild,
+                            prim: PrimOpr::Update,
+                            args: vec![Atom::Var(r), Atom::Int(i as i64 + 1), Atom::Var(v)],
+                            rest: Box::new(cont),
+                        };
+                        let temp = self.translate_expr(rhs, v, inner);
+                        self.translate_expr(expr, r, temp)
+                    }
                     ast::Stmt::While {
                         cond,
                         body,
@@ -650,7 +688,7 @@ impl Translator {
                             |cont, (i, (_label, obj))| cps::Expr::Prim {
                                 bind: *obj,
                                 prim: PrimOpr::Select,
-                                args: vec![Atom::Var(mat.objs[j]), Atom::Int((i + 1) as i64)],
+                                args: vec![Atom::Var(mat.objs[j]), Atom::Int(i as i64 + 1)],
                                 rest: Box::new(cont),
                             },
                         );

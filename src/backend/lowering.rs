@@ -169,6 +169,9 @@ impl Lowering {
                             self.push(Instr::Store(*bind, idx, *arg));
                         }
                     }
+                    (PrimOpr::Update, [arg1, arg2, arg3]) => {
+                        self.push(Instr::Store(*arg1, *arg2, *arg3));
+                    }
                     (PrimOpr::Alloc, [arg]) => {
                         self.push(Instr::Alloc(*bind, *arg));
                     }

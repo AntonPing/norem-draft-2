@@ -28,6 +28,7 @@ impl fmt::Display for PrimOpr {
             PrimOpr::Move => "@move".fmt(f),
             PrimOpr::Record => "@record".fmt(f),
             PrimOpr::Select => "@select".fmt(f),
+            PrimOpr::Update => "@update".fmt(f),
             PrimOpr::Alloc => "@alloc".fmt(f),
             PrimOpr::Load => "@load".fmt(f),
             PrimOpr::Store => "@store".fmt(f),
