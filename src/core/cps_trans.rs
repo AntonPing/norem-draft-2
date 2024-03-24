@@ -420,7 +420,7 @@ impl Translator {
             } => {
                 //  normalize(e.a, bind, rest) =
                 //  normalize(e, x,
-                //      let bind = load x (i+1);
+                //      let bind = select x (i+1);
                 //      rest)
                 //  (* where i is the index of field a, which is solved in type checker *)
                 let i = self.cons_map[&cons_info.unwrap()]
@@ -436,7 +436,7 @@ impl Translator {
                     x,
                     cps::Expr::Prim {
                         bind,
-                        prim: PrimOpr::Load,
+                        prim: PrimOpr::Select,
                         args: vec![Atom::Var(x), Atom::Int((i + 1) as i64)],
                         rest: Box::new(rest),
                     },
