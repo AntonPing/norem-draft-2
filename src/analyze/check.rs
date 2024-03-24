@@ -247,52 +247,7 @@ impl<'diag> TypeChecker<'diag> {
                 }
                 Ok(rhs)
             }
-            Expr::Field {
-                expr,
-                field,
-                cons_info,
-                span,
-            } => {
-                assert!(cons_info.is_none());
-                let typ = self.check_expr(expr)?;
-
-                // rule 1: if it was as-binded in pattern matching, allow to access
-                if let Expr::Var { ident, span: _ } = expr.deref_mut() {
-                    if let Some(cons) = self.as_bind.get(ident).cloned() {
-                        let cons_ty = self.cons_ctx[&cons].clone();
-                        let (pars, res) = self.instantiate_cons(&cons_ty);
-                        self.unify(&typ, &res);
-                        let par = pars.iter().find(|par| par.label == *field);
-                        if let Some(par) = par {
-                            *cons_info = Some(cons);
-                            return Ok(par.data.clone());
-                        }
-                    }
-                }
-
-                // rule 2: if the datatype is infered, and contains only one varient, allow to access
-                let typ = self.solver.merge(&typ);
-                if let UnifyType::Cons(data, _) = typ {
-                    let conss = self.data_ctx[&data].clone();
-                    if conss.len() == 1 {
-                        let cons = conss[0];
-                        let cons_ty = self.cons_ctx[&cons].clone();
-                        let (pars, res) = self.instantiate_cons(&cons_ty);
-                        self.unify(&typ, &res);
-                        let par = pars.iter().find(|par| par.label == *field);
-                        if let Some(par) = par {
-                            *cons_info = Some(cons);
-                            return Ok(par.data.clone());
-                        }
-                    }
-                }
-
-                self.diags.push(
-                    Diagnostic::error("cannot infer field access constructor!")
-                        .line_span(span.clone(), "here is the field access"),
-                );
-                Err("cannot infer field access constructor!".to_string())
-            }
+            Expr::Field { .. } => self.check_field_access(expr),
             Expr::NewRef { expr, span: _ } => {
                 let typ = self.check_expr(expr)?;
                 Ok(UnifyType::Cons(Ident::dummy(&"Ref"), vec![typ]))
@@ -332,7 +287,13 @@ impl<'diag> TypeChecker<'diag> {
                     let res_ty = self.check_expr(cont)?;
                     Ok(res_ty)
                 }
-                Stmt::Assign { .. } => todo!(),
+                Stmt::Assign { lhs, rhs, span: _ } => {
+                    let typ1 = self.check_field_access(lhs)?;
+                    let typ2 = self.check_expr(rhs)?;
+                    self.unify(&typ1, &typ2);
+                    let res_ty = self.check_expr(cont)?;
+                    Ok(res_ty)
+                }
                 Stmt::While {
                     cond,
                     body,
@@ -353,6 +314,59 @@ impl<'diag> TypeChecker<'diag> {
                 }
             },
         }
+    }
+
+    fn check_field_access(&mut self, expr: &mut Expr) -> CheckResult<UnifyType> {
+        let Expr::Field {
+            expr,
+            field,
+            cons_info,
+            span,
+        } = expr
+        else {
+            panic!("field access check with a non-field-access expression!")
+        };
+
+        assert!(cons_info.is_none());
+        let typ = self.check_expr(expr)?;
+
+        // rule 1: if it was as-binded in pattern matching, allow to access
+        if let Expr::Var { ident, span: _ } = expr.deref_mut() {
+            if let Some(cons) = self.as_bind.get(ident).cloned() {
+                let cons_ty = self.cons_ctx[&cons].clone();
+                let (pars, res) = self.instantiate_cons(&cons_ty);
+                self.unify(&typ, &res);
+                let par = pars.iter().find(|par| par.label == *field);
+                if let Some(par) = par {
+                    *cons_info = Some(cons);
+                    return Ok(par.data.clone());
+                }
+            }
+        }
+
+        // rule 2: if the datatype is infered, and contains only one varient, allow to access
+        let typ = self.solver.merge(&typ);
+        if let UnifyType::Cons(data, _) = typ {
+            let conss = self.data_ctx[&data].clone();
+            if conss.len() == 1 {
+                let cons = conss[0];
+                let cons_ty = self.cons_ctx[&cons].clone();
+                let (pars, res) = self.instantiate_cons(&cons_ty);
+                self.unify(&typ, &res);
+                let par = pars.iter().find(|par| par.label == *field);
+                if let Some(par) = par {
+                    *cons_info = Some(cons);
+                    return Ok(par.data.clone());
+                }
+            }
+        }
+
+        self.diags.push(
+            Diagnostic::error("cannot infer field access constructor!")
+                .line_span(span.clone(), "here is the field access"),
+        );
+
+        Err("cannot infer field access constructor!".to_string())
     }
 
     fn check_rule(&mut self, rule: &mut Rule, lhs: &UnifyType, rhs: &UnifyType) -> CheckResult<()> {
