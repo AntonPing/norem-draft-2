@@ -807,6 +807,15 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                     span,
                 })
             }
+            Token::TyUnit => {
+                self.match_token(Token::TyUnit)?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Type::Lit {
+                    lit: LitType::TyUnit,
+                    span,
+                })
+            }
             Token::UpperIdent => {
                 let ident = self.parse_uident()?;
                 if self.peek_token() == Token::LBracket {

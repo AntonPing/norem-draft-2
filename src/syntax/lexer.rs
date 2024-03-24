@@ -118,6 +118,8 @@ pub enum Token {
     TyBool,
     #[token("Char")]
     TyChar,
+    #[token("Unit")]
+    TyUnit,
     #[regex("[a-z]([a-zA-Z0-9]|_)*")]
     LowerIdent,
     #[regex("[A-Z]([a-zA-Z0-9]|_)*")]
