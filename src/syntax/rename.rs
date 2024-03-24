@@ -232,6 +232,10 @@ impl<'diag> Renamer<'diag> {
                         self.rename_expr(lhs)?;
                         self.rename_expr(rhs)?;
                     }
+                    Stmt::Assign { lhs, rhs, span: _ } => {
+                        self.rename_expr(lhs)?;
+                        self.rename_expr(rhs)?;
+                    }
                     Stmt::While {
                         cond,
                         body,

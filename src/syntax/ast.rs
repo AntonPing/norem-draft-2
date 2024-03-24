@@ -152,6 +152,11 @@ pub enum Stmt {
         rhs: Expr,
         span: Span,
     },
+    Assign {
+        lhs: Expr,
+        rhs: Expr,
+        span: Span,
+    },
     While {
         cond: Expr,
         body: Expr,
@@ -253,6 +258,7 @@ impl Stmt {
         match self {
             Stmt::Let { span, .. } => span,
             Stmt::RefSet { span, .. } => span,
+            Stmt::Assign { span, .. } => span,
             Stmt::While { span, .. } => span,
             Stmt::Do { span, .. } => span,
         }

@@ -18,6 +18,7 @@ enum ParseError {
     LexerError(Span),
     FailedToMatch(Token, Token, Span),
     FailedToParse(&'static str, Token, Span),
+    NotALeftValue(Span),
 }
 type ParseResult<T> = Result<T, ParseError>;
 
@@ -91,6 +92,10 @@ impl<'src, 'diag> Parser<'src, 'diag> {
             ParseError::FailedToParse(name, found, span) => self.diags.push(
                 Diagnostic::error(format!("cannot parse {name}!"))
                     .line_span(span.clone(), format!("found token {found:?}")),
+            ),
+            ParseError::NotALeftValue(span) => self.diags.push(
+                Diagnostic::error(format!("left hand side of assignment is not a left value!"))
+                    .line_span(span.clone(), "here is the left hand side expression"),
             ),
         }
     }
@@ -541,20 +546,39 @@ impl<'src, 'diag> Parser<'src, 'diag> {
             }
             _tok => {
                 let expr = self.parse_expr()?;
-                if self.peek_token() == Token::LeftArrow {
-                    self.match_token(Token::LeftArrow)?;
-                    let expr2 = self.parse_expr()?;
-                    let end = self.end_pos();
-                    let span = Span { start, end };
-                    Ok(Stmt::RefSet {
-                        lhs: expr,
-                        rhs: expr2,
-                        span,
-                    })
-                } else {
-                    let end = self.end_pos();
-                    let span = Span { start, end };
-                    Ok(Stmt::Do { expr, span })
+
+                match self.peek_token() {
+                    Token::LeftArrow => {
+                        self.match_token(Token::LeftArrow)?;
+                        let expr2 = self.parse_expr()?;
+                        let end = self.end_pos();
+                        let span = Span { start, end };
+                        Ok(Stmt::RefSet {
+                            lhs: expr,
+                            rhs: expr2,
+                            span,
+                        })
+                    }
+                    Token::ColonEqual => {
+                        self.match_token(Token::ColonEqual)?;
+                        let expr2 = self.parse_expr()?;
+                        let end = self.end_pos();
+                        let span = Span { start, end };
+                        if matches!(expr, Expr::Field { .. }) {
+                            Ok(Stmt::RefSet {
+                                lhs: expr,
+                                rhs: expr2,
+                                span,
+                            })
+                        } else {
+                            Err(ParseError::NotALeftValue(expr.get_span().clone()))
+                        }
+                    }
+                    _ => {
+                        let end = self.end_pos();
+                        let span = Span { start, end };
+                        Ok(Stmt::Do { expr, span })
+                    }
                 }
             }
         }

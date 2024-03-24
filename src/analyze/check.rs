@@ -332,6 +332,7 @@ impl<'diag> TypeChecker<'diag> {
                     let res_ty = self.check_expr(cont)?;
                     Ok(res_ty)
                 }
+                Stmt::Assign { .. } => todo!(),
                 Stmt::While {
                     cond,
                     body,

@@ -518,6 +518,7 @@ impl Translator {
                         let temp = self.translate_expr(rhs, v, inner);
                         self.translate_expr(lhs, r, temp)
                     }
+                    ast::Stmt::Assign { .. } => todo!(),
                     ast::Stmt::While {
                         cond,
                         body,
