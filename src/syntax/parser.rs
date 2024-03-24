@@ -565,7 +565,7 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                         let end = self.end_pos();
                         let span = Span { start, end };
                         if matches!(expr, Expr::Field { .. }) {
-                            Ok(Stmt::RefSet {
+                            Ok(Stmt::Assign {
                                 lhs: expr,
                                 rhs: expr2,
                                 span,
