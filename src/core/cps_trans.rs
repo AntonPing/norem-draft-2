@@ -500,7 +500,7 @@ impl Translator {
                         //  normalize(e1, x, normalize(e2, bind, rest))
                         self.translate_expr(expr, *ident, cont)
                     }
-                    ast::Stmt::Assign { lhs, rhs, span: _ } => {
+                    ast::Stmt::RefSet { lhs, rhs, span: _ } => {
                         //  normalize(lhs := rhs; e, bind, rest) =
                         //  normalize(lhs, r,
                         //      normalize(rhs, v,

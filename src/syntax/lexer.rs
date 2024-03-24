@@ -57,8 +57,10 @@ pub enum Token {
     Arrow,
     #[token("=>")]
     FatArrow,
+    #[token("<-")]
+    LeftArrow,
     #[token(":=")]
-    Assign,
+    ColonEqual,
     #[token("fn")]
     Fn,
     #[token("let")]

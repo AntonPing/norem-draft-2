@@ -147,7 +147,7 @@ pub enum Stmt {
         expr: Expr,
         span: Span,
     },
-    Assign {
+    RefSet {
         lhs: Expr,
         rhs: Expr,
         span: Span,
@@ -252,7 +252,7 @@ impl Stmt {
     pub fn get_span(&self) -> &Span {
         match self {
             Stmt::Let { span, .. } => span,
-            Stmt::Assign { span, .. } => span,
+            Stmt::RefSet { span, .. } => span,
             Stmt::While { span, .. } => span,
             Stmt::Do { span, .. } => span,
         }

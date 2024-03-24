@@ -228,7 +228,7 @@ impl<'diag> Renamer<'diag> {
                         self.val_ctx.leave_scope();
                         return Ok(());
                     }
-                    Stmt::Assign { lhs, rhs, span: _ } => {
+                    Stmt::RefSet { lhs, rhs, span: _ } => {
                         self.rename_expr(lhs)?;
                         self.rename_expr(rhs)?;
                     }

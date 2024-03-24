@@ -541,12 +541,12 @@ impl<'src, 'diag> Parser<'src, 'diag> {
             }
             _tok => {
                 let expr = self.parse_expr()?;
-                if self.peek_token() == Token::Assign {
-                    self.match_token(Token::Assign)?;
+                if self.peek_token() == Token::LeftArrow {
+                    self.match_token(Token::LeftArrow)?;
                     let expr2 = self.parse_expr()?;
                     let end = self.end_pos();
                     let span = Span { start, end };
-                    Ok(Stmt::Assign {
+                    Ok(Stmt::RefSet {
                         lhs: expr,
                         rhs: expr2,
                         span,

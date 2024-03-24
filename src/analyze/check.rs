@@ -325,7 +325,7 @@ impl<'diag> TypeChecker<'diag> {
                     let res = self.check_expr(cont)?;
                     Ok(res)
                 }
-                Stmt::Assign { lhs, rhs, span: _ } => {
+                Stmt::RefSet { lhs, rhs, span: _ } => {
                     let lhs = self.check_expr(lhs)?;
                     let rhs = self.check_expr(rhs)?;
                     self.unify(&lhs, &UnifyType::Cons(Ident::dummy(&"Ref"), vec![rhs]));
