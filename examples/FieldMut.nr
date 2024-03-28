@@ -1,8 +1,8 @@
 module FieldMut where
 
 datatype Foo where
-| Foo1 { a: Int, b: Int }
-| Foo2 { c: Int, d: Int }
+| Foo1 { a: mut Int, b: Int }
+| Foo2 { c: mut Int, d: Int }
 end
 
 function read_fst(x: Foo) -> Int

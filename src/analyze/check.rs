@@ -15,7 +15,7 @@ struct ValType {
 #[derive(Clone, Debug)]
 struct ConsType {
     polys: Vec<Ident>,
-    pars: Vec<Labeled<UnifyType>>,
+    pars: Vec<Labeled<(bool, UnifyType)>>,
     res: UnifyType,
 }
 
@@ -83,7 +83,17 @@ impl<'diag> TypeChecker<'diag> {
 
     fn instantiate_cons(&mut self, cons: &ConsType) -> (Vec<Labeled<UnifyType>>, UnifyType) {
         if cons.polys.is_empty() {
-            (cons.pars.clone(), cons.res.clone())
+            let pars = cons
+                .pars
+                .iter()
+                .map(|par| Labeled {
+                    label: par.label,
+                    data: par.data.1.clone(),
+                    span: par.span.clone(),
+                })
+                .collect();
+            let res = cons.res.clone();
+            (pars, res)
         } else {
             let map = self.make_instantiate_map(&cons.polys);
             let pars = cons
@@ -91,7 +101,7 @@ impl<'diag> TypeChecker<'diag> {
                 .iter()
                 .map(|par| Labeled {
                     label: par.label,
-                    data: unify::substitute(&map, &par.data),
+                    data: unify::substitute(&map, &par.data.1),
                     span: par.span.clone(),
                 })
                 .collect();
@@ -292,7 +302,28 @@ impl<'diag> TypeChecker<'diag> {
                     let typ2 = self.check_expr(rhs)?;
                     self.unify(&typ1, &typ2);
                     let res_ty = self.check_expr(cont)?;
-                    Ok(res_ty)
+
+                    let Expr::Field {
+                        expr: _,
+                        field,
+                        cons_info: Some(cons),
+                        span: _,
+                    } = lhs
+                    else {
+                        unreachable!()
+                    };
+                    let is_mut = self.cons_ctx[&cons]
+                        .pars
+                        .iter()
+                        .find(|par| par.label == *field)
+                        .map(|par| par.data.0)
+                        .unwrap();
+                    if is_mut {
+                        Ok(res_ty)
+                    } else {
+                        self.diags.push(Diagnostic::error("not a mutable field!"));
+                        Err("not a mutable field!".to_string())
+                    }
                 }
                 Stmt::While {
                     cond,
@@ -502,7 +533,7 @@ impl<'diag> TypeChecker<'diag> {
                                 let Labeled { label, data, span } = fld;
                                 Labeled {
                                     label: *label,
-                                    data: UnifyType::from(&data.1),
+                                    data: (data.0, UnifyType::from(&data.1)),
                                     span: span.clone(),
                                 }
                             })
