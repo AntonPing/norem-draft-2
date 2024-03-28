@@ -366,7 +366,7 @@ impl<'diag> Renamer<'diag> {
                 }
                 for var in vars {
                     for fld in var.flds.iter_mut() {
-                        self.rename_type(&mut fld.data)?;
+                        self.rename_type(&mut fld.data.1)?;
                     }
                 }
                 self.leave_scope();

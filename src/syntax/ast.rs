@@ -206,7 +206,7 @@ pub enum Pattern {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Varient {
     pub cons: Ident,
-    pub flds: Vec<Labeled<Type>>,
+    pub flds: Vec<Labeled<(bool, Type)>>,
     pub span: Span,
 }
 

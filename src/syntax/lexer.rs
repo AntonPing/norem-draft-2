@@ -91,6 +91,8 @@ pub enum Token {
     Do,
     #[token("ref")]
     Ref,
+    #[token("mut")]
+    Mut,
     #[token("function")]
     Function,
     #[token("datatype")]

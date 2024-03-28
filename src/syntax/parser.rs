@@ -873,7 +873,14 @@ impl<'src, 'diag> Parser<'src, 'diag> {
     fn parse_varient(&mut self) -> ParseResult<Varient> {
         let start = self.start_pos();
         let cons = self.parse_uident()?;
-        let flds = self.parse_labeled_list(|par| par.parse_type(), None)?;
+        let flds = self.parse_labeled_list(
+            |par| {
+                let is_mut = par.option(|par| par.match_token(Token::Mut))?.is_some();
+                let typ = par.parse_type()?;
+                Ok((is_mut, typ))
+            },
+            None,
+        )?;
         let end = self.end_pos();
         let span = Span { start, end };
         Ok(Varient { cons, flds, span })

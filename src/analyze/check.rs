@@ -502,7 +502,7 @@ impl<'diag> TypeChecker<'diag> {
                                 let Labeled { label, data, span } = fld;
                                 Labeled {
                                     label: *label,
-                                    data: data.into(),
+                                    data: UnifyType::from(&data.1),
                                     span: span.clone(),
                                 }
                             })
