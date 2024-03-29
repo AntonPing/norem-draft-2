@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 pub struct Optimizer {
     atom_map: HashMap<Ident, Atom>,
-    record_map: HashMap<Ident, Vec<Atom>>,
+    record_map: HashMap<Ident, Vec<(bool, Atom)>>,
     used_set: HashSet<Ident>,
 }
 
@@ -188,7 +188,8 @@ impl Optimizer {
                         self.visit_expr(*rest)
                     }
                     (PrimOpr::Record, _) => {
-                        self.record_map.insert(bind, args.clone());
+                        self.record_map
+                            .insert(bind, args.iter().map(|arg| (false, *arg)).collect());
                         let cont = self.visit_expr(*rest);
                         if self.used_set.contains(&bind) {
                             self.used_set.remove(&bind);
@@ -205,7 +206,8 @@ impl Optimizer {
                     }
                     (PrimOpr::Select, [rec, idx]) => {
                         if let Some(elems) = self.record_map.get(&rec.unwrap_var()) {
-                            self.atom_map.insert(bind, elems[idx.unwrap_int() as usize]);
+                            self.atom_map
+                                .insert(bind, elems[idx.unwrap_int() as usize].1);
                             self.visit_expr(*rest)
                         } else {
                             let cont = self.visit_expr(*rest);
@@ -241,19 +243,71 @@ impl Optimizer {
                     }
                 }
             }
-            cps::Expr::Record { bind, args, rest } => todo!(),
+            cps::Expr::Record { bind, args, rest } => {
+                let args: Vec<(bool, Atom)> = args
+                    .into_iter()
+                    .map(|arg| (arg.0, self.visit_atom(arg.1)))
+                    .collect();
+                self.record_map.insert(bind, args.clone());
+                let rest = self.visit_expr(*rest);
+                if self.used_set.contains(&bind) {
+                    self.used_set.remove(&bind);
+                    args.iter().for_each(|arg| self.mark_val_used(&arg.1));
+                    cps::Expr::Record {
+                        bind,
+                        args,
+                        rest: Box::new(rest),
+                    }
+                } else {
+                    rest
+                }
+            }
             cps::Expr::Select {
                 bind,
                 rec,
                 idx,
                 rest,
-            } => todo!(),
+            } => {
+                let rec = self.visit_atom(rec);
+                if let Some(elems) = self.record_map.get(&rec.unwrap_var()) {
+                    if !elems[idx].0 {
+                        // if the field is not mutable, spread the value
+                        self.atom_map.insert(bind, elems[idx].1);
+                        return self.visit_expr(*rest);
+                    }
+                }
+                let rest = self.visit_expr(*rest);
+                if self.used_set.contains(&bind) {
+                    self.used_set.remove(&bind);
+                    self.mark_val_used(&rec);
+                    cps::Expr::Select {
+                        bind,
+                        rec,
+                        idx,
+                        rest: Box::new(rest),
+                    }
+                } else {
+                    rest
+                }
+            }
             cps::Expr::Update {
                 rec,
                 idx,
                 arg,
                 rest,
-            } => todo!(),
+            } => {
+                let rec = self.visit_atom(rec);
+                let arg = self.visit_atom(arg);
+                let rest = self.visit_expr(*rest);
+                self.mark_val_used(&rec);
+                self.mark_val_used(&arg);
+                cps::Expr::Update {
+                    rec,
+                    idx,
+                    arg,
+                    rest: Box::new(rest),
+                }
+            }
             cps::Expr::Call { func, cont, args } => {
                 let func = self.visit_atom(Atom::Var(func)).unwrap_var();
                 let cont = self.visit_atom(Atom::Var(cont)).unwrap_var();
