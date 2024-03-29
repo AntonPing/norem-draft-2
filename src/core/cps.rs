@@ -170,6 +170,23 @@ pub enum Expr {
         args: Vec<Atom>,
         rest: Box<Expr>,
     },
+    Record {
+        bind: Ident,
+        args: Vec<(bool, Atom)>,
+        rest: Box<Expr>,
+    },
+    Select {
+        bind: Ident,
+        rec: Atom,
+        idx: usize,
+        rest: Box<Expr>,
+    },
+    Update {
+        rec: Atom,
+        idx: usize,
+        arg: Atom,
+        rest: Box<Expr>,
+    },
     Call {
         func: Ident,
         cont: Ident,

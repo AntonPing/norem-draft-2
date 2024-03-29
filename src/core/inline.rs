@@ -98,6 +98,33 @@ impl InlineScan {
                 self.visit_expr(rest);
                 args.iter().for_each(|arg| self.visit_atom(arg));
             }
+            Expr::Record {
+                bind: _,
+                args,
+                rest,
+            } => {
+                self.visit_expr(rest);
+                args.iter().for_each(|arg| self.visit_atom(&arg.1));
+            }
+            Expr::Select {
+                bind: _,
+                rec,
+                idx: _,
+                rest,
+            } => {
+                self.visit_expr(rest);
+                self.visit_atom(rec);
+            }
+            Expr::Update {
+                rec,
+                idx: _,
+                arg,
+                rest,
+            } => {
+                self.visit_expr(rest);
+                self.visit_atom(rec);
+                self.visit_atom(arg);
+            }
             Expr::Call { func, cont, args } => {
                 self.visit_atom(&Atom::Var(*func));
                 self.visit_atom(&Atom::Var(*cont));
@@ -229,6 +256,38 @@ impl InlinePerform {
                     bind,
                     prim,
                     args,
+                    rest,
+                }
+            }
+            Expr::Record { bind, args, rest } => {
+                let rest = Box::new(self.visit_expr(*rest));
+                Expr::Record { bind, args, rest }
+            }
+            Expr::Select {
+                bind,
+                rec,
+                idx,
+                rest,
+            } => {
+                let rest = Box::new(self.visit_expr(*rest));
+                Expr::Select {
+                    bind,
+                    rec,
+                    idx,
+                    rest,
+                }
+            }
+            Expr::Update {
+                rec,
+                idx,
+                arg,
+                rest,
+            } => {
+                let rest = Box::new(self.visit_expr(*rest));
+                Expr::Update {
+                    rec,
+                    idx,
+                    arg,
                     rest,
                 }
             }

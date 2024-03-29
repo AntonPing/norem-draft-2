@@ -14,6 +14,12 @@ impl Renamer {
         pass.visit_module(modl);
     }
 
+    fn visit_bind(&mut self, bind: &mut Ident) {
+        let new = bind.uniquify();
+        self.context.insert(*bind, new);
+        *bind = new;
+    }
+
     fn visit_atom(&mut self, atom: &mut Atom) {
         if let Atom::Var(x) = atom {
             if let Some(y) = self.context.get(&x) {
@@ -26,9 +32,7 @@ impl Renamer {
         let Module { name: _, decls } = modl;
         self.context.enter_scope();
         for decl in decls.iter_mut() {
-            let new = decl.func.uniquify();
-            self.context.insert(decl.func, new);
-            decl.func = new;
+            self.visit_bind(&mut decl.func);
         }
         for decl in decls {
             self.visit_func_decl(decl);
@@ -44,13 +48,9 @@ impl Renamer {
             body,
         } = decl;
         self.context.enter_scope();
-        let new = cont.uniquify();
-        self.context.insert(*cont, new);
-        *cont = new;
-        for par in pars {
-            let new = par.uniquify();
-            self.context.insert(*par, new);
-            *par = new;
+        self.visit_bind(cont);
+        for par in pars.iter_mut() {
+            self.visit_bind(par);
         }
         self.visit_expr(body);
         self.context.leave_scope();
@@ -63,10 +63,8 @@ impl Renamer {
             body,
         } = decl;
         self.context.enter_scope();
-        for par in pars {
-            let new = par.uniquify();
-            self.context.insert(*par, new);
-            *par = new;
+        for par in pars.iter_mut() {
+            self.visit_bind(par);
         }
         self.visit_expr(body);
         self.context.leave_scope();
@@ -77,14 +75,10 @@ impl Renamer {
             Expr::Decls { funcs, conts, body } => {
                 self.context.enter_scope();
                 for decl in funcs.iter_mut() {
-                    let new = decl.func.uniquify();
-                    self.context.insert(decl.func, new);
-                    decl.func = new;
+                    self.visit_bind(&mut decl.func);
                 }
                 for decl in conts.iter_mut() {
-                    let new = decl.cont.uniquify();
-                    self.context.insert(decl.cont, new);
-                    decl.cont = new;
+                    self.visit_bind(&mut decl.cont);
                 }
                 for decl in funcs {
                     self.visit_func_decl(decl);
@@ -103,9 +97,38 @@ impl Renamer {
             } => {
                 args.iter_mut().for_each(|arg| self.visit_atom(arg));
                 self.context.enter_scope();
-                let new = bind.uniquify();
-                self.context.insert(*bind, new);
-                *bind = new;
+                self.visit_bind(bind);
+                self.visit_expr(rest);
+                self.context.leave_scope()
+            }
+            Expr::Record { bind, args, rest } => {
+                args.iter_mut().for_each(|arg| self.visit_atom(&mut arg.1));
+                self.context.enter_scope();
+                self.visit_bind(bind);
+                self.visit_expr(rest);
+                self.context.leave_scope()
+            }
+            Expr::Select {
+                bind,
+                rec,
+                idx: _,
+                rest,
+            } => {
+                self.visit_atom(rec);
+                self.context.enter_scope();
+                self.visit_bind(bind);
+                self.visit_expr(rest);
+                self.context.leave_scope()
+            }
+            Expr::Update {
+                rec,
+                idx: _,
+                arg,
+                rest,
+            } => {
+                self.visit_atom(rec);
+                self.visit_atom(arg);
+                self.context.enter_scope();
                 self.visit_expr(rest);
                 self.context.leave_scope()
             }

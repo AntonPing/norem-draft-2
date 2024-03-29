@@ -176,6 +176,47 @@ impl ClosConv {
                     rest,
                 }
             }
+            Expr::Record { bind, args, rest } => {
+                let rest = Box::new(self.visit_expr(*rest));
+                self.freevar.remove(&bind);
+                let args: Vec<(bool, Atom)> = args
+                    .into_iter()
+                    .map(|arg| (arg.0, self.visit_atom(arg.1)))
+                    .collect();
+                Expr::Record { bind, args, rest }
+            }
+            Expr::Select {
+                bind,
+                rec,
+                idx,
+                rest,
+            } => {
+                let rest = Box::new(self.visit_expr(*rest));
+                self.freevar.remove(&bind);
+                let rec = self.visit_atom(rec);
+                Expr::Select {
+                    bind,
+                    rec,
+                    idx,
+                    rest,
+                }
+            }
+            Expr::Update {
+                rec,
+                idx,
+                arg,
+                rest,
+            } => {
+                let rest = Box::new(self.visit_expr(*rest));
+                let rec = self.visit_atom(rec);
+                let arg = self.visit_atom(arg);
+                Expr::Update {
+                    rec,
+                    idx,
+                    arg,
+                    rest,
+                }
+            }
             Expr::Call { func, cont, args } => {
                 self.visit_atom(Atom::Var(func));
                 let args: Vec<Atom> = args.into_iter().map(|arg| self.visit_atom(arg)).collect();

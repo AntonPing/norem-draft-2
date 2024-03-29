@@ -96,6 +96,35 @@ impl fmt::Display for Expr {
                 let args = args.iter().format(&", ");
                 write!(f, "let {bind} = {prim}({args});{NWLN}{rest}")
             }
+            Expr::Record { bind, args, rest } => {
+                let args = args
+                    .iter()
+                    .map(|(is_mut, arg)| {
+                        if *is_mut {
+                            format!("mut {}", arg)
+                        } else {
+                            format!("{}", arg)
+                        }
+                    })
+                    .format(", ");
+                write!(f, "record {bind} = {{ {args} }};{NWLN}{rest}")
+            }
+            Expr::Select {
+                bind,
+                rec,
+                idx,
+                rest,
+            } => {
+                write!(f, "select {bind} = {rec}[{idx}];{NWLN}{rest}")
+            }
+            Expr::Update {
+                rec,
+                idx,
+                arg,
+                rest,
+            } => {
+                write!(f, "update {rec}[{idx}] = {arg};{NWLN}{rest}")
+            }
             Expr::Call { func, cont, args } => {
                 let cont = Atom::Var(*cont);
                 let args = [&cont].into_iter().chain(args.iter()).format(&", ");

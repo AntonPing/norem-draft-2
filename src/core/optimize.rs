@@ -241,6 +241,19 @@ impl Optimizer {
                     }
                 }
             }
+            cps::Expr::Record { bind, args, rest } => todo!(),
+            cps::Expr::Select {
+                bind,
+                rec,
+                idx,
+                rest,
+            } => todo!(),
+            cps::Expr::Update {
+                rec,
+                idx,
+                arg,
+                rest,
+            } => todo!(),
             cps::Expr::Call { func, cont, args } => {
                 let func = self.visit_atom(Atom::Var(func)).unwrap_var();
                 let cont = self.visit_atom(Atom::Var(cont)).unwrap_var();

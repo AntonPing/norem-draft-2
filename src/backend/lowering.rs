@@ -188,6 +188,40 @@ impl Lowering {
                 }
                 self.visit_expr(rest, cont);
             }
+            Expr::Record { bind, args, rest } => {
+                let r = Ident::fresh(&"r");
+                self.push(Instr::LitI(r, args.len() as i64));
+                self.push(Instr::Alloc(*bind, r));
+                for (i, (_, arg)) in args.iter().enumerate() {
+                    let idx = self.visit_atom(&Atom::Int(i as i64));
+                    let arg = self.visit_atom(arg);
+                    self.push(Instr::Store(*bind, idx, arg));
+                }
+                self.visit_expr(rest, cont);
+            }
+            Expr::Select {
+                bind,
+                rec,
+                idx,
+                rest,
+            } => {
+                let rec = self.visit_atom(rec);
+                let idx = self.visit_atom(&Atom::Int(*idx as i64));
+                self.push(Instr::Load(*bind, rec, idx));
+                self.visit_expr(rest, cont);
+            }
+            Expr::Update {
+                rec,
+                idx,
+                arg,
+                rest,
+            } => {
+                let rec = self.visit_atom(rec);
+                let idx = self.visit_atom(&Atom::Int(*idx as i64));
+                let arg = self.visit_atom(arg);
+                self.push(Instr::Store(rec, idx, arg));
+                self.visit_expr(rest, cont);
+            }
             Expr::Call {
                 func,
                 cont: cont2,
