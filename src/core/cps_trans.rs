@@ -213,12 +213,11 @@ impl Translator {
                         (bind, &fld.data)
                     })
                     .fold(
-                        cps::Expr::Prim {
+                        cps::Expr::Record {
                             bind: r,
-                            prim: cps::PrimOpr::Record,
-                            args: [Atom::Int(tag as i64)]
+                            args: [(false, Atom::Int(tag as i64))]
                                 .into_iter()
-                                .chain(xs.iter().map(|x| Atom::Var(*x)))
+                                .chain(xs.iter().map(|x| (false, Atom::Var(*x))))
                                 .collect(),
                             rest: Box::new(cps::Expr::Prim {
                                 bind,
@@ -434,10 +433,10 @@ impl Translator {
                 self.translate_expr(
                     expr,
                     x,
-                    cps::Expr::Prim {
+                    cps::Expr::Select {
                         bind,
-                        prim: PrimOpr::Select,
-                        args: vec![Atom::Var(x), Atom::Int((i + 1) as i64)],
+                        rec: Atom::Var(x),
+                        idx: i + 1,
                         rest: Box::new(rest),
                     },
                 )
@@ -528,7 +527,6 @@ impl Translator {
 
                         let r = Ident::fresh(&"r");
                         let v = Ident::fresh(&"v");
-                        let wild = Ident::fresh(&"_");
 
                         let ast::Expr::Field {
                             expr,
@@ -548,10 +546,10 @@ impl Translator {
                             .unwrap()
                             .0;
 
-                        let inner = cps::Expr::Prim {
-                            bind: wild,
-                            prim: PrimOpr::Update,
-                            args: vec![Atom::Var(r), Atom::Int(i as i64 + 1), Atom::Var(v)],
+                        let inner = cps::Expr::Update {
+                            rec: Atom::Var(r),
+                            idx: i + 1,
+                            arg: Atom::Var(v),
                             rest: Box::new(cont),
                         };
                         let temp = self.translate_expr(rhs, v, inner);
@@ -685,10 +683,10 @@ impl Translator {
 
                         let brch = binds.iter().enumerate().fold(
                             self.normalize_match(&new_mat, decls),
-                            |cont, (i, (_label, obj))| cps::Expr::Prim {
+                            |cont, (i, (_label, obj))| cps::Expr::Select {
                                 bind: *obj,
-                                prim: PrimOpr::Select,
-                                args: vec![Atom::Var(mat.objs[j]), Atom::Int(i as i64 + 1)],
+                                rec: Atom::Var(mat.objs[j]),
+                                idx: i + 1,
                                 rest: Box::new(cont),
                             },
                         );
@@ -703,10 +701,10 @@ impl Translator {
                     }
 
                     let t = Ident::fresh(&"t");
-                    cps::Expr::Prim {
+                    cps::Expr::Select {
                         bind: t,
-                        prim: PrimOpr::Select,
-                        args: vec![Atom::Var(mat.objs[j]), Atom::Int(0)],
+                        rec: Atom::Var(mat.objs[j]),
+                        idx: 0,
                         rest: Box::new(cps::Expr::Switch {
                             arg: Atom::Var(t),
                             brchs,
