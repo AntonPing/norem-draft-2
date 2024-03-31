@@ -157,21 +157,6 @@ impl Lowering {
                     (PrimOpr::ICmpGr, [arg1, arg2]) => {
                         self.push(Instr::ICmpGr(*bind, *arg1, *arg2));
                     }
-                    (PrimOpr::Select, [arg1, arg2]) => {
-                        self.push(Instr::Load(*bind, *arg1, *arg2));
-                    }
-                    (PrimOpr::Record, args) => {
-                        let x = Ident::fresh(&"x");
-                        self.push(Instr::LitI(x, args.len() as i64));
-                        self.push(Instr::Alloc(*bind, x));
-                        for (i, arg) in args.iter().enumerate() {
-                            let idx = self.visit_atom(&Atom::Int(i as i64));
-                            self.push(Instr::Store(*bind, idx, *arg));
-                        }
-                    }
-                    (PrimOpr::Update, [arg1, arg2, arg3]) => {
-                        self.push(Instr::Store(*arg1, *arg2, *arg3));
-                    }
                     (PrimOpr::Alloc, [arg]) => {
                         self.push(Instr::Alloc(*bind, *arg));
                     }

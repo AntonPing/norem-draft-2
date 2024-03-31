@@ -89,8 +89,6 @@ fn prim_opr(input: &str) -> IResult<&str, PrimOpr> {
         value(PrimOpr::ICmpEq, tag("@icmpeq")),
         value(PrimOpr::ICmpGr, tag("@icmpgr")),
         value(PrimOpr::Move, tag("@move")),
-        value(PrimOpr::Record, tag("@record")),
-        value(PrimOpr::Select, tag("@select")),
     ))(input)
 }
 

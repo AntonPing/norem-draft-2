@@ -183,48 +183,6 @@ impl Optimizer {
                         self.atom_map.insert(bind, *atom);
                         self.visit_expr(*rest)
                     }
-                    (PrimOpr::Record, []) => {
-                        self.atom_map.insert(bind, Atom::Unit);
-                        self.visit_expr(*rest)
-                    }
-                    (PrimOpr::Record, _) => {
-                        self.record_map
-                            .insert(bind, args.iter().map(|arg| (false, *arg)).collect());
-                        let cont = self.visit_expr(*rest);
-                        if self.used_set.contains(&bind) {
-                            self.used_set.remove(&bind);
-                            args.iter().for_each(|arg| self.mark_val_used(arg));
-                            cps::Expr::Prim {
-                                bind,
-                                prim,
-                                args,
-                                rest: Box::new(cont),
-                            }
-                        } else {
-                            cont
-                        }
-                    }
-                    (PrimOpr::Select, [rec, idx]) => {
-                        if let Some(elems) = self.record_map.get(&rec.unwrap_var()) {
-                            self.atom_map
-                                .insert(bind, elems[idx.unwrap_int() as usize].1);
-                            self.visit_expr(*rest)
-                        } else {
-                            let cont = self.visit_expr(*rest);
-                            if self.used_set.contains(&bind) {
-                                self.used_set.remove(&bind);
-                                args.iter().for_each(|arg| self.mark_val_used(arg));
-                                cps::Expr::Prim {
-                                    bind,
-                                    prim,
-                                    args,
-                                    rest: Box::new(cont),
-                                }
-                            } else {
-                                cont
-                            }
-                        }
-                    }
                     _ => {
                         let cont = self.visit_expr(*rest);
                         // unused primitive elimination
