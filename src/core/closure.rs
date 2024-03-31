@@ -103,19 +103,19 @@ impl ClosConv {
                         } = decl;
                         let c = Ident::fresh(&"c");
                         let pars: Vec<Ident> = [c].iter().chain(pars.iter()).copied().collect();
-                        let body = frees
-                            .iter()
-                            .enumerate()
-                            .fold(body, |acc, (i, x)| Expr::Prim {
-                                bind: *x,
-                                prim: PrimOpr::Select,
-                                args: vec![Atom::Var(c), Atom::Int(i as i64)],
-                                rest: Box::new(acc),
-                            });
-                        let body = free_funcs.iter().fold(body, |acc, func| Expr::Prim {
+                        let body =
+                            frees
+                                .iter()
+                                .enumerate()
+                                .fold(body, |acc, (i, x)| Expr::Select {
+                                    bind: *x,
+                                    rec: Atom::Var(c),
+                                    idx: i,
+                                    rest: Box::new(acc),
+                                });
+                        let body = free_funcs.iter().fold(body, |acc, func| Expr::Record {
                             bind: *func,
-                            prim: PrimOpr::Record,
-                            args: vec![Atom::Var(*func), Atom::Var(c)],
+                            args: vec![(false, Atom::Var(*func)), (false, Atom::Var(c))],
                             rest: Box::new(acc),
                         });
 
@@ -132,20 +132,19 @@ impl ClosConv {
 
                 let body = self.visit_expr(*body);
 
-                let body = funcs
-                    .iter()
-                    .map(|decl| decl.func)
-                    .fold(body, |acc, func| Expr::Prim {
-                        bind: func,
-                        prim: PrimOpr::Record,
-                        args: vec![Atom::Var(func), Atom::Var(c)],
-                        rest: Box::new(acc),
-                    });
+                let body =
+                    funcs
+                        .iter()
+                        .map(|decl| decl.func)
+                        .fold(body, |acc, func| Expr::Record {
+                            bind: func,
+                            args: vec![(false, Atom::Var(func)), (false, Atom::Var(c))],
+                            rest: Box::new(acc),
+                        });
 
-                let body = Expr::Prim {
+                let body = Expr::Record {
                     bind: c,
-                    prim: PrimOpr::Record,
-                    args: frees.iter().map(|x| Atom::Var(*x)).collect(),
+                    args: frees.iter().map(|x| (false, Atom::Var(*x))).collect(),
                     rest: Box::new(body),
                 };
 
@@ -222,14 +221,14 @@ impl ClosConv {
                 let args: Vec<Atom> = args.into_iter().map(|arg| self.visit_atom(arg)).collect();
                 let f = Ident::fresh(&"f");
                 let c = Ident::fresh(&"c");
-                Expr::Prim {
+                Expr::Select {
                     bind: f,
-                    prim: PrimOpr::Select,
-                    args: vec![Atom::Var(func), Atom::Int(0)],
-                    rest: Box::new(Expr::Prim {
+                    rec: Atom::Var(func),
+                    idx: 0,
+                    rest: Box::new(Expr::Select {
                         bind: c,
-                        prim: PrimOpr::Select,
-                        args: vec![Atom::Var(func), Atom::Int(1)],
+                        rec: Atom::Var(func),
+                        idx: 1,
                         rest: Box::new(Expr::Call {
                             func: f,
                             cont,
