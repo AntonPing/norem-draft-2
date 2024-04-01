@@ -104,11 +104,11 @@ impl UnifySolver {
         match typ {
             UnifyType::Lit(_) => false,
             UnifyType::Var(_) => false,
-            UnifyType::Cons(_, args) => args.iter().all(|arg| self.occur_check(cell, arg)),
+            UnifyType::Cons(_, args) => args.iter().any(|arg| self.occur_check(cell, arg)),
             UnifyType::Func(pars, res) => pars
                 .iter()
                 .chain(std::iter::once(res.deref()))
-                .all(|x| self.occur_check(cell, x)),
+                .any(|x| self.occur_check(cell, x)),
             UnifyType::Cell(cell2) if cell == *cell2 => true,
             UnifyType::Cell(cell2) => {
                 if let Some(typ2) = &self.arena[*cell2] {
