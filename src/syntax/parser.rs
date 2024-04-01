@@ -334,6 +334,7 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                 PrimOpr::ICmpLs => 5,
                 PrimOpr::ICmpEq => 5,
                 PrimOpr::ICmpGr => 5,
+                _ => unreachable!(),
             }
         }
 

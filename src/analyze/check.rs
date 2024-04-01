@@ -141,29 +141,57 @@ impl<'diag> TypeChecker<'diag> {
                             .line_span(span.clone(), "here is the primitive application"),
                     );
                     let res = match prim {
-                        PrimOpr::IAdd | PrimOpr::ISub | PrimOpr::IMul => {
+                        PrimOpr::IAdd | PrimOpr::ISub | PrimOpr::IMul | PrimOpr::IScan => {
                             UnifyType::Lit(LitType::TyInt)
                         }
+                        PrimOpr::FScan => UnifyType::Lit(LitType::TyFloat),
+                        PrimOpr::CScan => UnifyType::Lit(LitType::TyChar),
                         PrimOpr::ICmpLs | PrimOpr::ICmpEq | PrimOpr::ICmpGr => {
                             UnifyType::Lit(LitType::TyBool)
+                        }
+                        PrimOpr::IPrint | PrimOpr::FPrint | PrimOpr::CPrint => {
+                            UnifyType::Lit(LitType::TyUnit)
                         }
                     };
                     return Ok(res);
                 }
-                match prim {
-                    PrimOpr::IAdd | PrimOpr::ISub | PrimOpr::IMul => {
-                        let arg0 = self.check_expr(&mut args[0])?;
-                        self.unify(&arg0, &UnifyType::Lit(LitType::TyInt));
-                        let arg1 = self.check_expr(&mut args[1])?;
+                let args: Vec<UnifyType> = args
+                    .iter_mut()
+                    .map(|arg| self.check_expr(arg))
+                    .collect::<CheckResult<Vec<_>>>()?;
+                match (prim, &args[..]) {
+                    (PrimOpr::IAdd, [arg1, arg2])
+                    | (PrimOpr::ISub, [arg1, arg2])
+                    | (PrimOpr::IMul, [arg1, arg2]) => {
                         self.unify(&arg1, &UnifyType::Lit(LitType::TyInt));
+                        self.unify(&arg2, &UnifyType::Lit(LitType::TyInt));
                         Ok(UnifyType::Lit(LitType::TyInt))
                     }
-                    PrimOpr::ICmpLs | PrimOpr::ICmpEq | PrimOpr::ICmpGr => {
-                        let arg0 = self.check_expr(&mut args[0])?;
-                        self.unify(&arg0, &UnifyType::Lit(LitType::TyInt));
-                        let arg1 = self.check_expr(&mut args[1])?;
+                    (PrimOpr::ICmpLs, [arg1, arg2])
+                    | (PrimOpr::ICmpEq, [arg1, arg2])
+                    | (PrimOpr::ICmpGr, [arg1, arg2]) => {
                         self.unify(&arg1, &UnifyType::Lit(LitType::TyInt));
+                        self.unify(&arg2, &UnifyType::Lit(LitType::TyInt));
                         Ok(UnifyType::Lit(LitType::TyBool))
+                    }
+                    (PrimOpr::IPrint, [arg]) => {
+                        self.unify(&arg, &UnifyType::Lit(LitType::TyInt));
+                        Ok(UnifyType::Lit(LitType::TyUnit))
+                    }
+                    (PrimOpr::FPrint, [arg]) => {
+                        self.unify(&arg, &UnifyType::Lit(LitType::TyFloat));
+                        Ok(UnifyType::Lit(LitType::TyUnit))
+                    }
+                    (PrimOpr::CPrint, [arg]) => {
+                        self.unify(&arg, &UnifyType::Lit(LitType::TyChar));
+                        Ok(UnifyType::Lit(LitType::TyUnit))
+                    }
+                    (PrimOpr::IScan, []) => Ok(UnifyType::Lit(LitType::TyInt)),
+                    (PrimOpr::FScan, []) => Ok(UnifyType::Lit(LitType::TyFloat)),
+                    (PrimOpr::CScan, []) => Ok(UnifyType::Lit(LitType::TyChar)),
+                    (prim, _) => {
+                        println!("{:?}", prim);
+                        unreachable!();
                     }
                 }
             }

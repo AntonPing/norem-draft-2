@@ -131,6 +131,12 @@ impl From<ast::PrimOpr> for PrimOpr {
             ast::PrimOpr::ICmpLs => PrimOpr::ICmpLs,
             ast::PrimOpr::ICmpEq => PrimOpr::ICmpEq,
             ast::PrimOpr::ICmpGr => PrimOpr::ICmpGr,
+            ast::PrimOpr::IPrint => PrimOpr::IPrint,
+            ast::PrimOpr::IScan => PrimOpr::IScan,
+            ast::PrimOpr::FPrint => PrimOpr::FPrint,
+            ast::PrimOpr::FScan => PrimOpr::FScan,
+            ast::PrimOpr::CPrint => PrimOpr::CPrint,
+            ast::PrimOpr::CScan => PrimOpr::CScan,
         }
     }
 }

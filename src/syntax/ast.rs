@@ -40,6 +40,12 @@ pub enum PrimOpr {
     ICmpLs,
     ICmpEq,
     ICmpGr,
+    IPrint,
+    IScan,
+    FPrint,
+    FScan,
+    CPrint,
+    CScan,
 }
 
 impl PrimOpr {
@@ -51,6 +57,12 @@ impl PrimOpr {
             PrimOpr::ICmpLs => 2,
             PrimOpr::ICmpEq => 2,
             PrimOpr::ICmpGr => 2,
+            PrimOpr::IPrint => 1,
+            PrimOpr::IScan => 0,
+            PrimOpr::FPrint => 1,
+            PrimOpr::FScan => 0,
+            PrimOpr::CPrint => 1,
+            PrimOpr::CScan => 0,
         }
     }
 }
