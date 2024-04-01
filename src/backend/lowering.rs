@@ -144,6 +144,7 @@ impl Lowering {
                 args,
                 rest,
             } => {
+                assert_eq!(prim.get_arity(), args.len());
                 let args: Vec<_> = args.iter().map(|arg| self.visit_atom(arg)).collect();
                 match (prim, &args[..]) {
                     (PrimOpr::Move, [arg]) => {
@@ -175,6 +176,24 @@ impl Lowering {
                     }
                     (PrimOpr::Store, [arg1, arg2, arg3]) => {
                         self.push(Instr::Store(*arg1, *arg2, *arg3));
+                    }
+                    (PrimOpr::IPrint, [arg]) => {
+                        self.push(Instr::IPrint(*arg));
+                    }
+                    (PrimOpr::IScan, []) => {
+                        self.push(Instr::IScan(*bind));
+                    }
+                    (PrimOpr::FPrint, [arg]) => {
+                        self.push(Instr::FPrint(*arg));
+                    }
+                    (PrimOpr::FScan, []) => {
+                        self.push(Instr::FScan(*bind));
+                    }
+                    (PrimOpr::CPrint, [arg]) => {
+                        self.push(Instr::CPrint(*arg));
+                    }
+                    (PrimOpr::CScan, []) => {
+                        self.push(Instr::CScan(*bind));
                     }
                     (prim, _) => {
                         println!("{prim}");

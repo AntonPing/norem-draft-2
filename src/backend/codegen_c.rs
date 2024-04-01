@@ -64,7 +64,13 @@ impl CodegenMap {
             | Instr::LitF(r, _)
             | Instr::LitC(r, _)
             | Instr::LitA(r, _)
-            | Instr::Alloc(r, _) => {
+            | Instr::Alloc(r, _)
+            | Instr::IPrint(r)
+            | Instr::IScan(r)
+            | Instr::FPrint(r)
+            | Instr::FScan(r)
+            | Instr::CPrint(r)
+            | Instr::CScan(r) => {
                 self.visit_var(r);
             }
             Instr::Move(r1, r2) => {
@@ -271,6 +277,30 @@ impl Codegen {
                 let r2 = self.map.var_map[r2];
                 let r3 = self.map.var_map[r3];
                 write!(self.text, "    r{r1}.i = r{r2}.i * r{r3}.i;\n")
+            }
+            Instr::IPrint(r) => {
+                let r = self.map.var_map[r];
+                write!(self.text, "    printf(\"\\%ld\n\", r{r}.i);\n")
+            }
+            Instr::IScan(r) => {
+                let r = self.map.var_map[r];
+                write!(self.text, "    scanf(\"\\%ld\n\", &r{r}.i);\n")
+            }
+            Instr::FPrint(r) => {
+                let r = self.map.var_map[r];
+                write!(self.text, "    printf(\"\\%lf\n\", r{r}.f);\n")
+            }
+            Instr::FScan(r) => {
+                let r = self.map.var_map[r];
+                write!(self.text, "    scanf(\"\\%lf\n\", &r{r}.f);\n")
+            }
+            Instr::CPrint(r) => {
+                let r = self.map.var_map[r];
+                write!(self.text, "    printf(\"\\%c\n\", r{r}.c);\n")
+            }
+            Instr::CScan(r) => {
+                let r = self.map.var_map[r];
+                write!(self.text, "    scanf(\"\\%c\n\", &r{r}.c);\n")
             }
         }
     }

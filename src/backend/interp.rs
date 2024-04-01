@@ -22,6 +22,28 @@ impl Value {
             panic!("failed to unwrap Value::Int!");
         }
     }
+    fn unwrap_float(&self) -> f64 {
+        if let Value::Float(x) = self {
+            *x
+        } else {
+            panic!("failed to unwrap Value::Float!");
+        }
+    }
+    #[allow(dead_code)]
+    fn unwrap_bool(&self) -> bool {
+        if let Value::Bool(x) = self {
+            *x
+        } else {
+            panic!("failed to unwrap Value::Bool!");
+        }
+    }
+    fn unwrap_char(&self) -> char {
+        if let Value::Char(x) = self {
+            *x
+        } else {
+            panic!("failed to unwrap Value::Char!");
+        }
+    }
     fn unwrap_addr(&self) -> Ident {
         if let Value::Addr(x) = self {
             *x
@@ -143,6 +165,34 @@ impl<'a> Interpreter<'a> {
                     Instr::IMul(r1, r2, r3) => {
                         let value = self.local[r2].unwrap_int() * self.local[r3].unwrap_int();
                         self.local.insert(*r1, Value::Int(value));
+                    }
+                    Instr::IPrint(r) => {
+                        let value = self.local[r].unwrap_int();
+                        println!("{}", value);
+                    }
+                    Instr::IScan(r) => {
+                        let mut s = String::new();
+                        std::io::stdin().read_line(&mut s).unwrap();
+                        self.local.insert(*r, Value::Int(s.parse().unwrap()));
+                    }
+
+                    Instr::FPrint(r) => {
+                        let value = self.local[r].unwrap_float();
+                        println!("{}", value);
+                    }
+                    Instr::FScan(r) => {
+                        let mut s = String::new();
+                        std::io::stdin().read_line(&mut s).unwrap();
+                        self.local.insert(*r, Value::Float(s.parse().unwrap()));
+                    }
+                    Instr::CPrint(r) => {
+                        let value = self.local[r].unwrap_char();
+                        println!("{}", value);
+                    }
+                    Instr::CScan(r) => {
+                        let mut s = String::new();
+                        std::io::stdin().read_line(&mut s).unwrap();
+                        self.local.insert(*r, Value::Char(s.parse().unwrap()));
                     }
                 }
             }

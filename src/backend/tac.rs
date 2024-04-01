@@ -18,6 +18,12 @@ pub enum Instr {
     IAdd(Ident, Ident, Ident),
     ISub(Ident, Ident, Ident),
     IMul(Ident, Ident, Ident),
+    IPrint(Ident),
+    IScan(Ident),
+    FPrint(Ident),
+    FScan(Ident),
+    CPrint(Ident),
+    CScan(Ident),
 }
 
 #[derive(Clone, Debug)]
