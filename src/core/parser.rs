@@ -123,14 +123,14 @@ fn expr_prim(input: &str) -> IResult<&str, Expr> {
     let (input, args) = separated_list0(|input| skip_space_tag(",", input), atom)(input)?;
     let (input, _) = skip_space_tag(")", input)?;
     let (input, _) = skip_space_tag(";", input)?;
-    let (input, cont) = expr(input)?;
+    let (input, rest) = expr(input)?;
     Ok((
         input,
         Expr::Prim {
             bind,
             prim,
             args,
-            rest: Box::new(cont),
+            rest: Box::new(rest),
         },
     ))
 }
@@ -153,6 +153,74 @@ fn expr_call(input: &str) -> IResult<&str, Expr> {
     } else {
         nom::combinator::fail("function call without cont argument!")
     }
+}
+
+fn expr_record(input: &str) -> IResult<&str, Expr> {
+    let (input, _) = skip_space_tag("record", input)?;
+    let (input, bind) = ident(input)?;
+    let (input, _) = skip_space_tag("=", input)?;
+    let (input, _) = skip_space_tag("{", input)?;
+    let (input, args) = separated_list0(
+        |input| skip_space_tag(",", input),
+        |input| {
+            let (input, res) = opt(|input| skip_space_tag("{", input))(input)?;
+            let (input, arg) = atom(input)?;
+            Ok((input, (res.is_some(), arg)))
+        },
+    )(input)?;
+    let (input, _) = skip_space_tag("}", input)?;
+    let (input, _) = skip_space_tag(";", input)?;
+    let (input, rest) = expr(input)?;
+    Ok((
+        input,
+        Expr::Record {
+            bind,
+            args,
+            rest: Box::new(rest),
+        },
+    ))
+}
+
+fn expr_select(input: &str) -> IResult<&str, Expr> {
+    let (input, _) = skip_space_tag("select", input)?;
+    let (input, bind) = ident(input)?;
+    let (input, _) = skip_space_tag("=", input)?;
+    let (input, rec) = atom(input)?;
+    let (input, _) = skip_space_tag("[", input)?;
+    let (input, idx) = digit1(input)?;
+    let (input, _) = skip_space_tag("]", input)?;
+    let (input, _) = skip_space_tag(";", input)?;
+    let (input, rest) = expr(input)?;
+    Ok((
+        input,
+        Expr::Select {
+            bind,
+            rec,
+            idx: idx.parse().unwrap(),
+            rest: Box::new(rest),
+        },
+    ))
+}
+
+fn expr_update(input: &str) -> IResult<&str, Expr> {
+    let (input, _) = skip_space_tag("update", input)?;
+    let (input, rec) = atom(input)?;
+    let (input, _) = skip_space_tag("[", input)?;
+    let (input, idx) = digit1(input)?;
+    let (input, _) = skip_space_tag("]", input)?;
+    let (input, _) = skip_space_tag("=", input)?;
+    let (input, arg) = atom(input)?;
+    let (input, _) = skip_space_tag(";", input)?;
+    let (input, rest) = expr(input)?;
+    Ok((
+        input,
+        Expr::Update {
+            rec,
+            idx: idx.parse().unwrap(),
+            arg,
+            rest: Box::new(rest),
+        },
+    ))
 }
 
 fn expr_jump(input: &str) -> IResult<&str, Expr> {
@@ -219,6 +287,9 @@ fn expr(input: &str) -> IResult<&str, Expr> {
     alt((
         expr_decls,
         expr_prim,
+        expr_record,
+        expr_select,
+        expr_update,
         expr_call,
         expr_jump,
         expr_ifte,

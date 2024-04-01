@@ -188,7 +188,7 @@ impl Translator {
                 //  normalize(en, xn,
                 //      ...
                 //          normalize(e1,x1,
-                //              let r = @record(i, x1, ..., xn);
+                //              record r = { i, x1, ..., xn };
                 //              let hole = move(r);
                 //              rest)...)
                 let (data, var) = &self.cons_map[cons];
@@ -419,7 +419,7 @@ impl Translator {
             } => {
                 //  normalize(e.a, bind, rest) =
                 //  normalize(e, x,
-                //      let bind = select x (i+1);
+                //      select bind = x[i+1];
                 //      rest)
                 //  (* where i is the index of field a, which is solved in type checker *)
                 let i = self.cons_map[&cons_info.unwrap()]

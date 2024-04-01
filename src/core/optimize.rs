@@ -399,9 +399,9 @@ fn optimize_test_const_fold() {
 module Test where
 func f(k):
     let x = @iadd(1, 2);
-    let r = @record(x, x);
-    let x1 = @select(r, 0);
-    let x2 = @select(r, 1);
+    record r = { x, x };
+    select x1 = r[0];
+    select x2 = r[1];
     let y = @iadd(x1, x2);
     let z = @iadd(x1, y);
     return z;
