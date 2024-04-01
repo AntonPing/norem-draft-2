@@ -56,31 +56,48 @@ impl From<ast::LitVal> for Atom {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PrimOpr {
+    // arithmetic
     IAdd,
     ISub,
     IMul,
+    // comparision
     ICmpLs,
     ICmpEq,
     ICmpGr,
+    // move
     Move,
+    // memory operation
     Alloc,
     Load,
     Store,
+    // print and scan
+    IPrint,
+    IScan,
+    FPrint,
+    FScan,
+    CPrint,
+    CScan,
 }
 
 impl PrimOpr {
-    pub fn get_arity(&self) -> Option<usize> {
+    pub fn get_arity(&self) -> usize {
         match self {
-            PrimOpr::IAdd => Some(2),
-            PrimOpr::ISub => Some(2),
-            PrimOpr::IMul => Some(2),
-            PrimOpr::ICmpLs => Some(2),
-            PrimOpr::ICmpEq => Some(2),
-            PrimOpr::ICmpGr => Some(2),
-            PrimOpr::Move => Some(1),
-            PrimOpr::Alloc => Some(1),
-            PrimOpr::Load => Some(2),
-            PrimOpr::Store => Some(3),
+            PrimOpr::IAdd => 2,
+            PrimOpr::ISub => 2,
+            PrimOpr::IMul => 2,
+            PrimOpr::ICmpLs => 2,
+            PrimOpr::ICmpEq => 2,
+            PrimOpr::ICmpGr => 2,
+            PrimOpr::Move => 1,
+            PrimOpr::Alloc => 1,
+            PrimOpr::Load => 2,
+            PrimOpr::Store => 3,
+            PrimOpr::IPrint => 1,
+            PrimOpr::IScan => 0,
+            PrimOpr::FPrint => 1,
+            PrimOpr::FScan => 0,
+            PrimOpr::CPrint => 1,
+            PrimOpr::CScan => 0,
         }
     }
     pub fn is_pure(&self) -> bool {
@@ -95,6 +112,12 @@ impl PrimOpr {
             PrimOpr::Alloc => false,
             PrimOpr::Load => false,
             PrimOpr::Store => false,
+            PrimOpr::IPrint => false,
+            PrimOpr::IScan => false,
+            PrimOpr::FPrint => false,
+            PrimOpr::FScan => false,
+            PrimOpr::CPrint => false,
+            PrimOpr::CScan => false,
         }
     }
 }

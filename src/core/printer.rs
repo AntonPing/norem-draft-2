@@ -29,6 +29,12 @@ impl fmt::Display for PrimOpr {
             PrimOpr::Alloc => "@alloc".fmt(f),
             PrimOpr::Load => "@load".fmt(f),
             PrimOpr::Store => "@store".fmt(f),
+            PrimOpr::IPrint => "@iprint".fmt(f),
+            PrimOpr::IScan => "@iscan".fmt(f),
+            PrimOpr::FPrint => "@fprint".fmt(f),
+            PrimOpr::FScan => "@fscan".fmt(f),
+            PrimOpr::CPrint => "@cprint".fmt(f),
+            PrimOpr::CScan => "@cscan".fmt(f),
         }
     }
 }
