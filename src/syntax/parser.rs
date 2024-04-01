@@ -289,6 +289,12 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                     "@icmpls" => Ok(PrimOpr::ICmpLs),
                     "@icmpeq" => Ok(PrimOpr::ICmpEq),
                     "@icmpgr" => Ok(PrimOpr::ICmpGr),
+                    "@iprint" => Ok(PrimOpr::IPrint),
+                    "@iscan" => Ok(PrimOpr::IScan),
+                    "@fprint" => Ok(PrimOpr::FPrint),
+                    "@fscan" => Ok(PrimOpr::FScan),
+                    "@cprint" => Ok(PrimOpr::CPrint),
+                    "@cscan" => Ok(PrimOpr::CScan),
                     _ => unreachable!(),
                 }
             }

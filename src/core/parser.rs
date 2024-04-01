@@ -88,6 +88,12 @@ fn prim_opr(input: &str) -> IResult<&str, PrimOpr> {
         value(PrimOpr::ICmpLs, tag("@icmpls")),
         value(PrimOpr::ICmpEq, tag("@icmpeq")),
         value(PrimOpr::ICmpGr, tag("@icmpgr")),
+        value(PrimOpr::IPrint, tag("@iprint")),
+        value(PrimOpr::IScan, tag("@iscan")),
+        value(PrimOpr::FPrint, tag("@fprint")),
+        value(PrimOpr::FScan, tag("@fscan")),
+        value(PrimOpr::CPrint, tag("@cprint")),
+        value(PrimOpr::CScan, tag("@cscan")),
         value(PrimOpr::Move, tag("@move")),
     ))(input)
 }
