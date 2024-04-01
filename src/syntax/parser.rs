@@ -177,11 +177,11 @@ impl<'src, 'diag> Parser<'src, 'diag> {
         vec.push(func(self)?);
         while self.peek_token() == delim {
             self.next_token()?;
+            // allow trailing delimiter
+            if self.peek_token() == right {
+                break;
+            }
             vec.push(func(self)?);
-        }
-        // allow trailing delimiter
-        if self.peek_token() == delim {
-            self.next_token()?;
         }
         self.match_token(right)?;
         Ok(vec)
