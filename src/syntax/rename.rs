@@ -215,15 +215,16 @@ impl<'diag> Renamer<'diag> {
                 match stmt.deref_mut() {
                     Stmt::Let {
                         ident,
-                        typ: _,
+                        typ,
                         expr,
                         span: _,
                     } => {
                         self.rename_expr(expr)?;
                         self.val_ctx.enter_scope();
-                        let new = ident.uniquify();
-                        self.val_ctx.insert(*ident, new);
-                        *ident = new;
+                        self.intro_val_ident(ident);
+                        if let Some(typ) = typ {
+                            self.rename_type(typ)?;
+                        }
                         self.rename_expr(cont)?;
                         self.val_ctx.leave_scope();
                         return Ok(());
