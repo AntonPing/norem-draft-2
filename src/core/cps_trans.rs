@@ -199,9 +199,9 @@ impl Translator {
                     .find(|(_i, cons2)| *cons2 == cons)
                     .unwrap()
                     .0;
-                // get varient fields
-                let label_vec: Vec<_> = var.flds.iter().map(|fld| fld.label).collect();
 
+                let label_vec: Vec<_> = var.flds.iter().map(|fld| fld.label).collect();
+                let is_mut_vec: Vec<_> = var.flds.iter().map(|fld| fld.data.0).collect();
                 let xs: Vec<Ident> = label_vec.iter().map(|_| Ident::fresh(&"x")).collect();
                 let r = Ident::fresh(&"r");
 
@@ -217,7 +217,12 @@ impl Translator {
                             bind: r,
                             args: [(false, Atom::Int(tag as i64))]
                                 .into_iter()
-                                .chain(xs.iter().map(|x| (false, Atom::Var(*x))))
+                                .chain(
+                                    is_mut_vec
+                                        .iter()
+                                        .zip(xs.iter())
+                                        .map(|(is_mut, x)| (*is_mut, Atom::Var(*x))),
+                                )
                                 .collect(),
                             rest: Box::new(cps::Expr::Prim {
                                 bind,
