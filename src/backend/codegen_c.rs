@@ -60,7 +60,11 @@ impl CodegenMap {
 
     fn visit_instr(&mut self, code: &Instr) {
         match code {
-            Instr::LitI(r, _) | Instr::LitF(r, _) | Instr::LitC(r, _) | Instr::Alloc(r, _) => {
+            Instr::LitI(r, _)
+            | Instr::LitF(r, _)
+            | Instr::LitC(r, _)
+            | Instr::LitA(r, _)
+            | Instr::Alloc(r, _) => {
                 self.visit_var(r);
             }
             Instr::Move(r1, r2) => {
@@ -141,7 +145,7 @@ impl Codegen {
             .map(|par| format!("value_t r{}", self.map.var_map[par]))
             .format(&", ")
             .to_string();
-        let func_name = func.name;
+        let func_name = func.name.as_str();
         write!(self.text, "value_t {func_name}({pars}) {{\n")?;
 
         // declare local variables
@@ -201,6 +205,11 @@ impl Codegen {
             Instr::LitC(r, v) => {
                 let r = self.map.var_map[r];
                 write!(self.text, "    r{r}.c = {v}\n")
+            }
+            Instr::LitA(r, v) => {
+                let r = self.map.var_map[r];
+                let v = v.as_str();
+                write!(self.text, "    r{r}.p = {v}\n")
             }
             Instr::Move(r1, r2) => {
                 let r1 = self.map.var_map[r1];
@@ -297,7 +306,7 @@ impl Codegen {
                     .map(|arg| format!("r{}", self.map.var_map[arg]))
                     .format(&", ")
                     .to_string();
-                write!(self.text, "    {bind} = {func}({args});\n")?;
+                write!(self.text, "    r{bind} = {func}({args});\n")?;
                 if next_blk == Some(*cont) {
                     Ok(())
                 } else {

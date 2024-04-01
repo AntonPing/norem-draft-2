@@ -1,6 +1,6 @@
 use crate::core::cps::{self, Atom, Expr, FuncDecl, PrimOpr};
 use crate::utils::ident::Ident;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::tac::*;
 
@@ -8,6 +8,7 @@ pub struct Lowering {
     cur_blk: Option<BasicBlock>,
     cur_func: Option<Function>,
     cur_modl: Module,
+    addr_set: HashSet<Ident>,
     cont_pars: HashMap<Ident, Vec<Ident>>,
 }
 impl Lowering {
@@ -16,6 +17,7 @@ impl Lowering {
             cur_blk: None,
             cur_func: None,
             cur_modl: Module::new(name),
+            addr_set: HashSet::new(),
             cont_pars: HashMap::new(),
         }
     }
@@ -23,7 +25,7 @@ impl Lowering {
     pub fn run(modl: &cps::Module) -> Module {
         let mut pass = Lowering::new(modl.name);
         for decl in modl.decls.iter() {
-            pass.cont_pars.insert(decl.cont, decl.pars.clone());
+            pass.addr_set.insert(decl.func);
         }
         for decl in modl.decls.iter() {
             pass.visit_func_decl(decl);
@@ -66,7 +68,15 @@ impl Lowering {
 
     fn visit_atom(&mut self, atom: &cps::Atom) -> Ident {
         match atom {
-            Atom::Var(x) => *x,
+            Atom::Var(x) => {
+                if self.addr_set.contains(x) {
+                    let x2 = Ident::fresh(&"x");
+                    self.push(Instr::LitA(x2, *x));
+                    x2
+                } else {
+                    *x
+                }
+            }
             Atom::Int(v) => {
                 let x = Ident::fresh(&"x");
                 self.push(Instr::LitI(x, *v));
@@ -212,15 +222,17 @@ impl Lowering {
                 cont: cont2,
                 args,
             } if *cont2 == cont => {
+                let func = self.visit_atom(&Atom::Var(*func));
                 let args: Vec<_> = args.iter().map(|arg| self.visit_atom(arg)).collect();
-                self.seal(LastInstr::TailCall(*func, args));
+                self.seal(LastInstr::TailCall(func, args));
                 self.emit_block();
             }
             Expr::Call { func, cont, args } => {
+                let func = self.visit_atom(&Atom::Var(*func));
                 let args: Vec<_> = args.iter().map(|arg| self.visit_atom(arg)).collect();
                 assert_eq!(self.cont_pars[cont].len(), 1);
                 let bind = self.cont_pars[cont][0];
-                self.seal(LastInstr::Call(bind, *func, *cont, args));
+                self.seal(LastInstr::Call(bind, func, *cont, args));
                 self.emit_block();
             }
             Expr::Jump { cont: cont2, args } if *cont2 == cont => {

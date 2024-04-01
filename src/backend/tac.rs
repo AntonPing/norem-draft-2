@@ -7,6 +7,7 @@ pub enum Instr {
     LitI(Ident, i64),
     LitF(Ident, f64),
     LitC(Ident, char),
+    LitA(Ident, Ident),
     Move(Ident, Ident),
     Alloc(Ident, Ident),
     Load(Ident, Ident, Ident),

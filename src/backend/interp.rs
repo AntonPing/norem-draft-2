@@ -9,8 +9,8 @@ pub enum Value {
     Float(f64),
     Bool(bool),
     Char(char),
-    Unit,
     Addr(Ident),
+    Unit,
     Ptr(*mut Value),
 }
 
@@ -98,6 +98,9 @@ impl<'a> Interpreter<'a> {
                     Instr::LitC(r, v) => {
                         self.local.insert(*r, Value::Char(*v));
                     }
+                    Instr::LitA(r, v) => {
+                        self.local.insert(*r, Value::Addr(*v));
+                    }
                     Instr::Move(r1, r2) => {
                         let v = self.local[r2];
                         self.local.insert(*r1, v);
@@ -115,13 +118,7 @@ impl<'a> Interpreter<'a> {
                     Instr::Store(mem, idx, reg) => {
                         let ptr = self.local[mem].unwrap_ptr();
                         let ptr = ptr.add(self.local[idx].unwrap_int() as usize);
-                        if let Some(addr) = self.local.get(reg) {
-                            *ptr = *addr;
-                        } else {
-                            // if it's not assigned, it's a function address
-                            assert!(self.pars_map.contains_key(&reg));
-                            *ptr = Value::Addr(*reg);
-                        }
+                        *ptr = *self.local.get(reg).unwrap();
                     }
                     Instr::ICmpGr(r1, r2, r3) => {
                         let value = self.local[r2].unwrap_int() > self.local[r3].unwrap_int();
@@ -151,12 +148,7 @@ impl<'a> Interpreter<'a> {
             }
             match run_blk.last.as_ref().unwrap() {
                 LastInstr::TailCall(func, args) => {
-                    // unwraping it if it's indirect call
-                    let mut func = *func;
-                    while !self.pars_map.contains_key(&func) {
-                        func = self.local[&func].unwrap_addr();
-                    }
-                    // introduce function parameters
+                    let func = self.local[&func].unwrap_addr();
                     let pars = self.pars_map[&func];
                     let args: Vec<_> = args.iter().map(|arg| self.local[arg]).collect();
                     assert_eq!(pars.len(), args.len());
@@ -169,11 +161,7 @@ impl<'a> Interpreter<'a> {
                     run_blk = self.code_map[&func];
                 }
                 LastInstr::Call(bind, func, cont, args) => {
-                    // unwraping it if it's indirect call
-                    let mut func = *func;
-                    while !self.pars_map.contains_key(&func) {
-                        func = self.local[&func].unwrap_addr();
-                    }
+                    let func = self.local[&func].unwrap_addr();
                     // introduce function parameters
                     let pars = self.pars_map[&func];
                     let args: Vec<_> = args.iter().map(|arg| self.local[arg]).collect();
