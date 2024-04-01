@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync;
 
-static INTERNER: Lazy<sync::RwLock<Interner>> = Lazy::new(|| {
+static INTERNER: Lazy<sync::Mutex<Interner>> = Lazy::new(|| {
     let interner = Interner {
         str_to_idx: HashMap::new(),
         idx_to_str: Vec::new(),
     };
-    sync::RwLock::new(interner)
+    sync::Mutex::new(interner)
 });
 
 struct Interner {
@@ -21,12 +21,10 @@ pub struct InternStr(usize);
 
 impl InternStr {
     pub fn new<S: AsRef<str>>(s: S) -> InternStr {
-        let interner = INTERNER.read().unwrap();
+        let mut interner = INTERNER.lock().unwrap();
         if let Some(idx) = interner.str_to_idx.get(s.as_ref()) {
             InternStr(*idx)
         } else {
-            drop(interner);
-            let mut interner = INTERNER.write().unwrap();
             let s = s.as_ref().to_string();
             let idx = interner.idx_to_str.len();
             interner.str_to_idx.insert(s.clone(), idx);
@@ -36,7 +34,7 @@ impl InternStr {
     }
 
     pub fn as_str(&self) -> &'static str {
-        let interner = INTERNER.read().unwrap();
+        let interner = INTERNER.lock().unwrap();
         &interner.idx_to_str[self.0]
     }
 }
