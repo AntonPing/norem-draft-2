@@ -4,6 +4,7 @@ use super::lexer::{self, Span, Token, TokenSpan};
 use super::prim::Prim;
 use crate::analyze::diagnostic::Diagnostic;
 use crate::syntax::ast::*;
+use crate::syntax::prim::Compare;
 use crate::utils::ident::Ident;
 use crate::utils::intern::InternStr;
 
@@ -330,12 +331,14 @@ impl<'src, 'diag> Parser<'src, 'diag> {
 
         fn get_prior(opr: &Prim) -> usize {
             match opr {
-                Prim::IAdd => 10,
-                Prim::ISub => 10,
-                Prim::IMul => 20,
-                Prim::ICmpLs => 5,
-                Prim::ICmpEq => 5,
-                Prim::ICmpGr => 5,
+                Prim::IAdd => 30,
+                Prim::ISub => 30,
+                Prim::IMul => 40,
+                Prim::IDiv => 40,
+                Prim::IRem => 40,
+                Prim::BAnd => 10,
+                Prim::BOr => 10,
+                Prim::ICmp(_) => 20,
                 _ => unreachable!(),
             }
         }
@@ -359,13 +362,21 @@ impl<'src, 'diag> Parser<'src, 'diag> {
         loop {
             let expr = self.parse_expr2()?;
             expr_stack.push(expr);
+            // todo: ad-hoc polymorphism
             let opr = match self.peek_token() {
                 Token::Plus => Prim::IAdd,
                 Token::Minus => Prim::ISub,
                 Token::Star => Prim::IMul,
-                Token::Less => Prim::ICmpLs,
-                Token::EqualEqual => Prim::ICmpEq,
-                Token::Greater => Prim::ICmpGr,
+                Token::Slash => Prim::IDiv,
+                Token::Percent => Prim::IRem,
+                Token::DoubleAmpersand => Prim::BAnd,
+                Token::DoubleBar => Prim::BOr,
+                Token::Less => Prim::ICmp(Compare::Lt),
+                Token::LessEqual => Prim::ICmp(Compare::Le),
+                Token::EqualEqual => Prim::ICmp(Compare::Eq),
+                Token::GreaterEqual => Prim::ICmp(Compare::Ge),
+                Token::Greater => Prim::ICmp(Compare::Gt),
+                Token::BangEqual => Prim::ICmp(Compare::Ne),
                 _ => {
                     while !opr_stack.is_empty() {
                         squash(&mut expr_stack, &mut opr_stack);
@@ -507,6 +518,29 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                 let end = self.end_pos();
                 let span = Span { start, end };
                 Ok(Expr::RefGet { expr, span })
+            }
+            Token::Bang => {
+                self.match_token(Token::Bang)?;
+                let expr = self.parse_expr3()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Expr::Prim {
+                    prim: Prim::BNot,
+                    args: vec![expr],
+                    span,
+                })
+            }
+            Token::Minus => {
+                self.match_token(Token::Minus)?;
+                let expr = self.parse_expr3()?;
+                let end = self.end_pos();
+                let span = Span { start, end };
+                Ok(Expr::Prim {
+                    // todo: ad-hoc polymorphism
+                    prim: Prim::INeg,
+                    args: vec![expr],
+                    span,
+                })
             }
             Token::Begin => self.parse_block(Token::Begin),
             Token::LParen => self.surround(Token::LParen, Token::RParen, |par| par.parse_expr()),

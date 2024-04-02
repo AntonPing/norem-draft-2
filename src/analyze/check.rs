@@ -125,12 +125,16 @@ impl<'diag> TypeChecker<'diag> {
             )
         }
         match prim {
-            Prim::IAdd => op2(LitType::TyInt, LitType::TyInt),
-            Prim::ISub => op2(LitType::TyInt, LitType::TyInt),
-            Prim::IMul => op2(LitType::TyInt, LitType::TyInt),
-            Prim::ICmpLs => op2(LitType::TyInt, LitType::TyBool),
-            Prim::ICmpEq => op2(LitType::TyInt, LitType::TyBool),
-            Prim::ICmpGr => op2(LitType::TyInt, LitType::TyBool),
+            Prim::IAdd | Prim::ISub | Prim::IMul | Prim::IDiv | Prim::IRem => {
+                op2(LitType::TyInt, LitType::TyInt)
+            }
+            Prim::FAdd | Prim::FSub | Prim::FMul | Prim::FDiv => {
+                op2(LitType::TyFloat, LitType::TyFloat)
+            }
+            Prim::ICmp(_) => op2(LitType::TyInt, LitType::TyBool),
+            Prim::FCmp(_) => op2(LitType::TyFloat, LitType::TyBool),
+            Prim::BAnd | Prim::BOr => op2(LitType::TyBool, LitType::TyBool),
+            Prim::BNot => op1(LitType::TyBool, LitType::TyBool),
             Prim::Move => {
                 let ty = self.fresh();
                 UnifyType::Func(vec![ty.clone()], Box::new(ty))
@@ -196,31 +200,11 @@ impl<'diag> TypeChecker<'diag> {
                     panic!("value variable not in context!")
                 }
             }
-            Expr::Prim { prim, args, span } => {
-                if args.len() != prim.get_arity() {
-                    self.diags.push(
-                        Diagnostic::error("primitive with wrong number of aruments!")
-                            .line_span(span.clone(), "here is the primitive application"),
-                    );
-                    let res = match prim {
-                        Prim::IAdd | Prim::ISub | Prim::IMul | Prim::IScan => {
-                            UnifyType::Lit(LitType::TyInt)
-                        }
-                        Prim::FScan => UnifyType::Lit(LitType::TyFloat),
-                        Prim::CScan => UnifyType::Lit(LitType::TyChar),
-                        Prim::ICmpLs | Prim::ICmpEq | Prim::ICmpGr => {
-                            UnifyType::Lit(LitType::TyBool)
-                        }
-                        Prim::IPrint | Prim::FPrint | Prim::CPrint => {
-                            UnifyType::Lit(LitType::TyUnit)
-                        }
-                        Prim::Move => todo!(),
-                        Prim::Alloc => todo!(),
-                        Prim::Load => todo!(),
-                        Prim::Store => todo!(),
-                    };
-                    return Ok(res);
-                }
+            Expr::Prim {
+                prim,
+                args,
+                span: _,
+            } => {
                 let args_ty: Vec<UnifyType> = args
                     .iter_mut()
                     .map(|arg| self.check_expr(arg))

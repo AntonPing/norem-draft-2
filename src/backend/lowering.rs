@@ -1,5 +1,5 @@
 use crate::core::cps::{self, Atom, Expr, FuncDecl};
-use crate::syntax::prim::Prim;
+use crate::syntax::prim::{Compare, Prim};
 use crate::utils::ident::Ident;
 use std::collections::{HashMap, HashSet};
 
@@ -160,13 +160,13 @@ impl Lowering {
                     (Prim::IMul, [arg1, arg2]) => {
                         self.push(Instr::IMul(*bind, *arg1, *arg2));
                     }
-                    (Prim::ICmpLs, [arg1, arg2]) => {
+                    (Prim::ICmp(Compare::Lt), [arg1, arg2]) => {
                         self.push(Instr::ICmpLs(*bind, *arg1, *arg2));
                     }
-                    (Prim::ICmpEq, [arg1, arg2]) => {
+                    (Prim::ICmp(Compare::Eq), [arg1, arg2]) => {
                         self.push(Instr::ICmpEq(*bind, *arg1, *arg2));
                     }
-                    (Prim::ICmpGr, [arg1, arg2]) => {
+                    (Prim::ICmp(Compare::Gt), [arg1, arg2]) => {
                         self.push(Instr::ICmpGr(*bind, *arg1, *arg2));
                     }
                     (Prim::Alloc, [arg]) => {

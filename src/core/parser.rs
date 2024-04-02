@@ -82,21 +82,16 @@ fn char(input: &str) -> IResult<&str, char> {
 
 fn prim_opr(input: &str) -> IResult<&str, Prim> {
     let (input, _) = skip_space(input)?;
-    alt((
-        value(Prim::IAdd, tag("@iadd")),
-        value(Prim::ISub, tag("@isub")),
-        value(Prim::IMul, tag("@imul")),
-        value(Prim::ICmpLs, tag("@icmpls")),
-        value(Prim::ICmpEq, tag("@icmpeq")),
-        value(Prim::ICmpGr, tag("@icmpgr")),
-        value(Prim::IPrint, tag("@iprint")),
-        value(Prim::IScan, tag("@iscan")),
-        value(Prim::FPrint, tag("@fprint")),
-        value(Prim::FScan, tag("@fscan")),
-        value(Prim::CPrint, tag("@cprint")),
-        value(Prim::CScan, tag("@cscan")),
-        value(Prim::Move, tag("@move")),
-    ))(input)
+    let (input, head) = tag("@")(input)?;
+    let (input, body) = alpha1(input)?;
+    let mut s = String::new();
+    s.push_str(head);
+    s.push_str(body);
+    if let Ok(res) = s.parse() {
+        Ok((input, res))
+    } else {
+        nom::combinator::fail("unknown primitive!")
+    }
 }
 
 fn if_cond(input: &str) -> IResult<&str, IfCond> {

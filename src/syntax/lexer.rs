@@ -37,6 +37,8 @@ pub enum Token {
     Star,
     #[token("/")]
     Slash,
+    #[token("%")]
+    Percent,
     #[token("<")]
     Less,
     #[token("<=")]
@@ -47,12 +49,16 @@ pub enum Token {
     GreaterEqual,
     #[token(">")]
     Greater,
+    #[token("!=")]
+    BangEqual,
     #[token("^")]
     Caret,
     #[token("&&")]
     DoubleAmpersand,
     #[token("||")]
     DoubleBar,
+    #[token("!")]
+    Bang,
     #[token("->")]
     Arrow,
     #[token("=>")]
