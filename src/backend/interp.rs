@@ -1,3 +1,4 @@
+use crate::syntax::prim::Compare;
 use crate::utils::ident::Ident;
 use std::collections::HashMap;
 
@@ -29,7 +30,6 @@ impl Value {
             panic!("failed to unwrap Value::Float!");
         }
     }
-    #[allow(dead_code)]
     fn unwrap_bool(&self) -> bool {
         if let Value::Bool(x) = self {
             *x
@@ -123,6 +123,80 @@ impl<'a> Interpreter<'a> {
                     Instr::LitA(r, v) => {
                         self.local.insert(*r, Value::Addr(*v));
                     }
+                    Instr::IAdd(r1, r2, r3) => {
+                        let value = self.local[r2].unwrap_int() + self.local[r3].unwrap_int();
+                        self.local.insert(*r1, Value::Int(value));
+                    }
+                    Instr::ISub(r1, r2, r3) => {
+                        let value = self.local[r2].unwrap_int() - self.local[r3].unwrap_int();
+                        self.local.insert(*r1, Value::Int(value));
+                    }
+                    Instr::IMul(r1, r2, r3) => {
+                        let value = self.local[r2].unwrap_int() * self.local[r3].unwrap_int();
+                        self.local.insert(*r1, Value::Int(value));
+                    }
+                    Instr::IDiv(r1, r2, r3) => {
+                        let value = self.local[r2].unwrap_int() / self.local[r3].unwrap_int();
+                        self.local.insert(*r1, Value::Int(value));
+                    }
+                    Instr::IRem(r1, r2, r3) => {
+                        let value = self.local[r2].unwrap_int() % self.local[r3].unwrap_int();
+                        self.local.insert(*r1, Value::Int(value));
+                    }
+                    Instr::FAdd(r1, r2, r3) => {
+                        let value = self.local[r2].unwrap_float() + self.local[r3].unwrap_float();
+                        self.local.insert(*r1, Value::Float(value));
+                    }
+                    Instr::FSub(r1, r2, r3) => {
+                        let value = self.local[r2].unwrap_float() - self.local[r3].unwrap_float();
+                        self.local.insert(*r1, Value::Float(value));
+                    }
+                    Instr::FMul(r1, r2, r3) => {
+                        let value = self.local[r2].unwrap_float() * self.local[r3].unwrap_float();
+                        self.local.insert(*r1, Value::Float(value));
+                    }
+                    Instr::FDiv(r1, r2, r3) => {
+                        let value = self.local[r2].unwrap_float() / self.local[r3].unwrap_float();
+                        self.local.insert(*r1, Value::Float(value));
+                    }
+                    Instr::BAnd(r1, r2, r3) => {
+                        let value = self.local[r2].unwrap_bool() && self.local[r3].unwrap_bool();
+                        self.local.insert(*r1, Value::Bool(value));
+                    }
+                    Instr::BOr(r1, r2, r3) => {
+                        let value = self.local[r2].unwrap_bool() || self.local[r3].unwrap_bool();
+                        self.local.insert(*r1, Value::Bool(value));
+                    }
+                    Instr::BNot(r1, r2) => {
+                        let value = !self.local[r2].unwrap_bool();
+                        self.local.insert(*r1, Value::Bool(value));
+                    }
+                    Instr::ICmp(cmp, r1, r2, r3) => {
+                        let lhs = self.local[r2].unwrap_int();
+                        let rhs = self.local[r3].unwrap_int();
+                        let value = match cmp {
+                            Compare::Lt => lhs < rhs,
+                            Compare::Le => lhs <= rhs,
+                            Compare::Eq => lhs == rhs,
+                            Compare::Ge => lhs >= rhs,
+                            Compare::Gt => lhs > rhs,
+                            Compare::Ne => lhs != rhs,
+                        };
+                        self.local.insert(*r1, Value::Bool(value));
+                    }
+                    Instr::FCmp(cmp, r1, r2, r3) => {
+                        let lhs = self.local[r2].unwrap_float();
+                        let rhs = self.local[r3].unwrap_float();
+                        let value = match cmp {
+                            Compare::Lt => lhs < rhs,
+                            Compare::Le => lhs <= rhs,
+                            Compare::Eq => lhs == rhs,
+                            Compare::Ge => lhs >= rhs,
+                            Compare::Gt => lhs > rhs,
+                            Compare::Ne => lhs != rhs,
+                        };
+                        self.local.insert(*r1, Value::Bool(value));
+                    }
                     Instr::Move(r1, r2) => {
                         let v = self.local[r2];
                         self.local.insert(*r1, v);
@@ -142,30 +216,6 @@ impl<'a> Interpreter<'a> {
                         let ptr = ptr.add(self.local[idx].unwrap_int() as usize);
                         *ptr = *self.local.get(reg).unwrap();
                     }
-                    Instr::ICmpGr(r1, r2, r3) => {
-                        let value = self.local[r2].unwrap_int() > self.local[r3].unwrap_int();
-                        self.local.insert(*r1, Value::Bool(value));
-                    }
-                    Instr::ICmpEq(r1, r2, r3) => {
-                        let value = self.local[r2].unwrap_int() == self.local[r3].unwrap_int();
-                        self.local.insert(*r1, Value::Bool(value));
-                    }
-                    Instr::ICmpLs(r1, r2, r3) => {
-                        let value = self.local[r2].unwrap_int() < self.local[r3].unwrap_int();
-                        self.local.insert(*r1, Value::Bool(value));
-                    }
-                    Instr::IAdd(r1, r2, r3) => {
-                        let value = self.local[r2].unwrap_int() + self.local[r3].unwrap_int();
-                        self.local.insert(*r1, Value::Int(value));
-                    }
-                    Instr::ISub(r1, r2, r3) => {
-                        let value = self.local[r2].unwrap_int() - self.local[r3].unwrap_int();
-                        self.local.insert(*r1, Value::Int(value));
-                    }
-                    Instr::IMul(r1, r2, r3) => {
-                        let value = self.local[r2].unwrap_int() * self.local[r3].unwrap_int();
-                        self.local.insert(*r1, Value::Int(value));
-                    }
                     Instr::IPrint(r) => {
                         let value = self.local[r].unwrap_int();
                         println!("{}", value);
@@ -176,7 +226,6 @@ impl<'a> Interpreter<'a> {
                         self.local
                             .insert(*r, Value::Int(s.trim().parse().unwrap_or(0)));
                     }
-
                     Instr::FPrint(r) => {
                         let value = self.local[r].unwrap_float();
                         println!("{}", value);

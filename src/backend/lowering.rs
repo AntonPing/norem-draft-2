@@ -160,14 +160,11 @@ impl Lowering {
                     (Prim::IMul, [arg1, arg2]) => {
                         self.push(Instr::IMul(*bind, *arg1, *arg2));
                     }
-                    (Prim::ICmp(Compare::Lt), [arg1, arg2]) => {
-                        self.push(Instr::ICmpLs(*bind, *arg1, *arg2));
+                    (Prim::ICmp(cmp), [arg1, arg2]) => {
+                        self.push(Instr::ICmp(*cmp, *bind, *arg1, *arg2));
                     }
-                    (Prim::ICmp(Compare::Eq), [arg1, arg2]) => {
-                        self.push(Instr::ICmpEq(*bind, *arg1, *arg2));
-                    }
-                    (Prim::ICmp(Compare::Gt), [arg1, arg2]) => {
-                        self.push(Instr::ICmpGr(*bind, *arg1, *arg2));
+                    (Prim::FCmp(cmp), [arg1, arg2]) => {
+                        self.push(Instr::FCmp(*cmp, *bind, *arg1, *arg2));
                     }
                     (Prim::Alloc, [arg]) => {
                         self.push(Instr::Alloc(*bind, *arg));
@@ -314,7 +311,7 @@ impl Lowering {
                         let flbr_label = Ident::fresh(&"flbr");
 
                         slf.push(Instr::LitI(temp, mid_id as i64));
-                        slf.push(Instr::ICmpLs(temp, arg, temp));
+                        slf.push(Instr::ICmp(Compare::Lt, temp, arg, temp));
                         slf.seal(LastInstr::BrIf(temp, trbr_label, flbr_label));
                         slf.emit_block();
 

@@ -1,4 +1,5 @@
 use super::tac::*;
+use crate::syntax::prim::Compare;
 use crate::utils::ident::Ident;
 use core::fmt;
 use itertools::Itertools;
@@ -73,18 +74,25 @@ impl CodegenMap {
             | Instr::CScan(r) => {
                 self.visit_var(r);
             }
-            Instr::Move(r1, r2) => {
+            Instr::BNot(r1, r2) | Instr::Move(r1, r2) => {
                 self.visit_var(r1);
                 self.visit_var(r2);
             }
             Instr::Load(r1, r2, r3)
             | Instr::Store(r1, r2, r3)
-            | Instr::ICmpGr(r1, r2, r3)
-            | Instr::ICmpEq(r1, r2, r3)
-            | Instr::ICmpLs(r1, r2, r3)
+            | Instr::ICmp(_, r1, r2, r3)
+            | Instr::FCmp(_, r1, r2, r3)
             | Instr::IAdd(r1, r2, r3)
             | Instr::ISub(r1, r2, r3)
-            | Instr::IMul(r1, r2, r3) => {
+            | Instr::IMul(r1, r2, r3)
+            | Instr::IDiv(r1, r2, r3)
+            | Instr::IRem(r1, r2, r3)
+            | Instr::FAdd(r1, r2, r3)
+            | Instr::FSub(r1, r2, r3)
+            | Instr::FMul(r1, r2, r3)
+            | Instr::FDiv(r1, r2, r3)
+            | Instr::BAnd(r1, r2, r3)
+            | Instr::BOr(r1, r2, r3) => {
                 self.visit_var(r1);
                 self.visit_var(r2);
                 self.visit_var(r3);
@@ -217,6 +225,105 @@ impl Codegen {
                 let v = v.as_str();
                 write!(self.text, "    r{r}.p = {v}\n")
             }
+            Instr::IAdd(r1, r2, r3) => {
+                let r1 = self.map.var_map[r1];
+                let r2 = self.map.var_map[r2];
+                let r3 = self.map.var_map[r3];
+                write!(self.text, "    r{r1}.i = r{r2}.i + r{r3}.i;\n")
+            }
+            Instr::ISub(r1, r2, r3) => {
+                let r1 = self.map.var_map[r1];
+                let r2 = self.map.var_map[r2];
+                let r3 = self.map.var_map[r3];
+                write!(self.text, "    r{r1}.i = r{r2}.i - r{r3}.i;\n")
+            }
+            Instr::IMul(r1, r2, r3) => {
+                let r1 = self.map.var_map[r1];
+                let r2 = self.map.var_map[r2];
+                let r3 = self.map.var_map[r3];
+                write!(self.text, "    r{r1}.i = r{r2}.i * r{r3}.i;\n")
+            }
+            Instr::IDiv(r1, r2, r3) => {
+                let r1 = self.map.var_map[r1];
+                let r2 = self.map.var_map[r2];
+                let r3 = self.map.var_map[r3];
+                write!(self.text, "    r{r1}.i = r{r2}.i / r{r3}.i;\n")
+            }
+            Instr::IRem(r1, r2, r3) => {
+                let r1 = self.map.var_map[r1];
+                let r2 = self.map.var_map[r2];
+                let r3 = self.map.var_map[r3];
+                write!(self.text, "    r{r1}.i = r{r2}.i % r{r3}.i;\n")
+            }
+            Instr::FAdd(r1, r2, r3) => {
+                let r1 = self.map.var_map[r1];
+                let r2 = self.map.var_map[r2];
+                let r3 = self.map.var_map[r3];
+                write!(self.text, "    r{r1}.i = r{r2}.f + r{r3}.f;\n")
+            }
+            Instr::FSub(r1, r2, r3) => {
+                let r1 = self.map.var_map[r1];
+                let r2 = self.map.var_map[r2];
+                let r3 = self.map.var_map[r3];
+                write!(self.text, "    r{r1}.i = r{r2}.f - r{r3}.f;\n")
+            }
+            Instr::FMul(r1, r2, r3) => {
+                let r1 = self.map.var_map[r1];
+                let r2 = self.map.var_map[r2];
+                let r3 = self.map.var_map[r3];
+                write!(self.text, "    r{r1}.i = r{r2}.f * r{r3}.f;\n")
+            }
+            Instr::FDiv(r1, r2, r3) => {
+                let r1 = self.map.var_map[r1];
+                let r2 = self.map.var_map[r2];
+                let r3 = self.map.var_map[r3];
+                write!(self.text, "    r{r1}.i = r{r2}.f / r{r3}.f;\n")
+            }
+            Instr::BAnd(r1, r2, r3) => {
+                let r1 = self.map.var_map[r1];
+                let r2 = self.map.var_map[r2];
+                let r3 = self.map.var_map[r3];
+                write!(self.text, "    r{r1}.i = r{r2}.b && r{r3}.b;\n")
+            }
+            Instr::BOr(r1, r2, r3) => {
+                let r1 = self.map.var_map[r1];
+                let r2 = self.map.var_map[r2];
+                let r3 = self.map.var_map[r3];
+                write!(self.text, "    r{r1}.i = r{r2}.b || r{r3}.b;\n")
+            }
+            Instr::BNot(r1, r2) => {
+                let r1 = self.map.var_map[r1];
+                let r2 = self.map.var_map[r2];
+                write!(self.text, "    r{r1}.i = !r{r2}.b;\n")
+            }
+            Instr::ICmp(cmp, r1, r2, r3) => {
+                let cmp = match cmp {
+                    Compare::Lt => "<",
+                    Compare::Le => "<=",
+                    Compare::Eq => "==",
+                    Compare::Ge => ">=",
+                    Compare::Gt => ">",
+                    Compare::Ne => "!=",
+                };
+                let r1 = self.map.var_map[r1];
+                let r2 = self.map.var_map[r2];
+                let r3 = self.map.var_map[r3];
+                write!(self.text, "    r{r1}.b = r{r2}.i {cmp} r{r3}.i;\n")
+            }
+            Instr::FCmp(cmp, r1, r2, r3) => {
+                let cmp = match cmp {
+                    Compare::Lt => "<",
+                    Compare::Le => "<=",
+                    Compare::Eq => "==",
+                    Compare::Ge => ">=",
+                    Compare::Gt => ">",
+                    Compare::Ne => "!=",
+                };
+                let r1 = self.map.var_map[r1];
+                let r2 = self.map.var_map[r2];
+                let r3 = self.map.var_map[r3];
+                write!(self.text, "    r{r1}.b = r{r2}.f {cmp} r{r3}.f;\n")
+            }
             Instr::Move(r1, r2) => {
                 let r1 = self.map.var_map[r1];
                 let r2 = self.map.var_map[r2];
@@ -241,42 +348,6 @@ impl Codegen {
                 let r2 = self.map.var_map[r2];
                 let r3 = self.map.var_map[r3];
                 write!(self.text, "    ((value_t*)r{r1}.p)[r{r2}.i] = r{r3};\n")
-            }
-            Instr::ICmpGr(r1, r2, r3) => {
-                let r1 = self.map.var_map[r1];
-                let r2 = self.map.var_map[r2];
-                let r3 = self.map.var_map[r3];
-                write!(self.text, "    r{r1}.b = r{r2}.i > r{r3}.i;\n")
-            }
-            Instr::ICmpEq(r1, r2, r3) => {
-                let r1 = self.map.var_map[r1];
-                let r2 = self.map.var_map[r2];
-                let r3 = self.map.var_map[r3];
-                write!(self.text, "    r{r1}.b = r{r2}.i == r{r3}.i;\n")
-            }
-            Instr::ICmpLs(r1, r2, r3) => {
-                let r1 = self.map.var_map[r1];
-                let r2 = self.map.var_map[r2];
-                let r3 = self.map.var_map[r3];
-                write!(self.text, "    r{r1}.b = r{r2}.i < r{r3}.i;\n")
-            }
-            Instr::IAdd(r1, r2, r3) => {
-                let r1 = self.map.var_map[r1];
-                let r2 = self.map.var_map[r2];
-                let r3 = self.map.var_map[r3];
-                write!(self.text, "    r{r1}.i = r{r2}.i + r{r3}.i;\n")
-            }
-            Instr::ISub(r1, r2, r3) => {
-                let r1 = self.map.var_map[r1];
-                let r2 = self.map.var_map[r2];
-                let r3 = self.map.var_map[r3];
-                write!(self.text, "    r{r1}.i = r{r2}.i - r{r3}.i;\n")
-            }
-            Instr::IMul(r1, r2, r3) => {
-                let r1 = self.map.var_map[r1];
-                let r2 = self.map.var_map[r2];
-                let r3 = self.map.var_map[r3];
-                write!(self.text, "    r{r1}.i = r{r2}.i * r{r3}.i;\n")
             }
             Instr::IPrint(r) => {
                 let r = self.map.var_map[r];

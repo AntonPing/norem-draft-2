@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-
+use crate::syntax::prim::Compare;
 use crate::utils::ident::Ident;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 pub enum Instr {
@@ -8,16 +8,24 @@ pub enum Instr {
     LitF(Ident, f64),
     LitC(Ident, char),
     LitA(Ident, Ident),
+    IAdd(Ident, Ident, Ident),
+    ISub(Ident, Ident, Ident),
+    IMul(Ident, Ident, Ident),
+    IDiv(Ident, Ident, Ident),
+    IRem(Ident, Ident, Ident),
+    FAdd(Ident, Ident, Ident),
+    FSub(Ident, Ident, Ident),
+    FMul(Ident, Ident, Ident),
+    FDiv(Ident, Ident, Ident),
+    BAnd(Ident, Ident, Ident),
+    BOr(Ident, Ident, Ident),
+    BNot(Ident, Ident),
+    ICmp(Compare, Ident, Ident, Ident),
+    FCmp(Compare, Ident, Ident, Ident),
     Move(Ident, Ident),
     Alloc(Ident, Ident),
     Load(Ident, Ident, Ident),
     Store(Ident, Ident, Ident),
-    ICmpGr(Ident, Ident, Ident),
-    ICmpEq(Ident, Ident, Ident),
-    ICmpLs(Ident, Ident, Ident),
-    IAdd(Ident, Ident, Ident),
-    ISub(Ident, Ident, Ident),
-    IMul(Ident, Ident, Ident),
     IPrint(Ident),
     IScan(Ident),
     FPrint(Ident),
