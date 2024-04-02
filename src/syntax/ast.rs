@@ -1,4 +1,5 @@
 use super::lexer::Span;
+use super::prim::Prim;
 use crate::utils::ident::Ident;
 use crate::utils::intern::InternStr;
 
@@ -28,41 +29,6 @@ impl LitVal {
             LitVal::Bool(_) => LitType::TyBool,
             LitVal::Char(_) => LitType::TyChar,
             LitVal::Unit => LitType::TyUnit,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PrimOpr {
-    IAdd,
-    ISub,
-    IMul,
-    ICmpLs,
-    ICmpEq,
-    ICmpGr,
-    IPrint,
-    IScan,
-    FPrint,
-    FScan,
-    CPrint,
-    CScan,
-}
-
-impl PrimOpr {
-    pub fn get_arity(&self) -> usize {
-        match self {
-            PrimOpr::IAdd => 2,
-            PrimOpr::ISub => 2,
-            PrimOpr::IMul => 2,
-            PrimOpr::ICmpLs => 2,
-            PrimOpr::ICmpEq => 2,
-            PrimOpr::ICmpGr => 2,
-            PrimOpr::IPrint => 1,
-            PrimOpr::IScan => 0,
-            PrimOpr::FPrint => 1,
-            PrimOpr::FScan => 0,
-            PrimOpr::CPrint => 1,
-            PrimOpr::CScan => 0,
         }
     }
 }
@@ -100,7 +66,7 @@ pub enum Expr {
         span: Span,
     },
     Prim {
-        prim: PrimOpr,
+        prim: Prim,
         args: Vec<Expr>,
         span: Span,
     },

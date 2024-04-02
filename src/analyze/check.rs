@@ -1,5 +1,6 @@
 use crate::analyze::unify::{self, UnifySolver, UnifyType};
 use crate::syntax::ast::*;
+use crate::syntax::prim::Prim;
 use crate::utils::ident::Ident;
 use std::collections::HashMap;
 use std::ops::DerefMut;
@@ -141,17 +142,21 @@ impl<'diag> TypeChecker<'diag> {
                             .line_span(span.clone(), "here is the primitive application"),
                     );
                     let res = match prim {
-                        PrimOpr::IAdd | PrimOpr::ISub | PrimOpr::IMul | PrimOpr::IScan => {
+                        Prim::IAdd | Prim::ISub | Prim::IMul | Prim::IScan => {
                             UnifyType::Lit(LitType::TyInt)
                         }
-                        PrimOpr::FScan => UnifyType::Lit(LitType::TyFloat),
-                        PrimOpr::CScan => UnifyType::Lit(LitType::TyChar),
-                        PrimOpr::ICmpLs | PrimOpr::ICmpEq | PrimOpr::ICmpGr => {
+                        Prim::FScan => UnifyType::Lit(LitType::TyFloat),
+                        Prim::CScan => UnifyType::Lit(LitType::TyChar),
+                        Prim::ICmpLs | Prim::ICmpEq | Prim::ICmpGr => {
                             UnifyType::Lit(LitType::TyBool)
                         }
-                        PrimOpr::IPrint | PrimOpr::FPrint | PrimOpr::CPrint => {
+                        Prim::IPrint | Prim::FPrint | Prim::CPrint => {
                             UnifyType::Lit(LitType::TyUnit)
                         }
+                        Prim::Move => todo!(),
+                        Prim::Alloc => todo!(),
+                        Prim::Load => todo!(),
+                        Prim::Store => todo!(),
                     };
                     return Ok(res);
                 }
@@ -160,35 +165,35 @@ impl<'diag> TypeChecker<'diag> {
                     .map(|arg| self.check_expr(arg))
                     .collect::<CheckResult<Vec<_>>>()?;
                 match (prim, &args[..]) {
-                    (PrimOpr::IAdd, [arg1, arg2])
-                    | (PrimOpr::ISub, [arg1, arg2])
-                    | (PrimOpr::IMul, [arg1, arg2]) => {
+                    (Prim::IAdd, [arg1, arg2])
+                    | (Prim::ISub, [arg1, arg2])
+                    | (Prim::IMul, [arg1, arg2]) => {
                         self.unify(&arg1, &UnifyType::Lit(LitType::TyInt));
                         self.unify(&arg2, &UnifyType::Lit(LitType::TyInt));
                         Ok(UnifyType::Lit(LitType::TyInt))
                     }
-                    (PrimOpr::ICmpLs, [arg1, arg2])
-                    | (PrimOpr::ICmpEq, [arg1, arg2])
-                    | (PrimOpr::ICmpGr, [arg1, arg2]) => {
+                    (Prim::ICmpLs, [arg1, arg2])
+                    | (Prim::ICmpEq, [arg1, arg2])
+                    | (Prim::ICmpGr, [arg1, arg2]) => {
                         self.unify(&arg1, &UnifyType::Lit(LitType::TyInt));
                         self.unify(&arg2, &UnifyType::Lit(LitType::TyInt));
                         Ok(UnifyType::Lit(LitType::TyBool))
                     }
-                    (PrimOpr::IPrint, [arg]) => {
+                    (Prim::IPrint, [arg]) => {
                         self.unify(&arg, &UnifyType::Lit(LitType::TyInt));
                         Ok(UnifyType::Lit(LitType::TyUnit))
                     }
-                    (PrimOpr::FPrint, [arg]) => {
+                    (Prim::FPrint, [arg]) => {
                         self.unify(&arg, &UnifyType::Lit(LitType::TyFloat));
                         Ok(UnifyType::Lit(LitType::TyUnit))
                     }
-                    (PrimOpr::CPrint, [arg]) => {
+                    (Prim::CPrint, [arg]) => {
                         self.unify(&arg, &UnifyType::Lit(LitType::TyChar));
                         Ok(UnifyType::Lit(LitType::TyUnit))
                     }
-                    (PrimOpr::IScan, []) => Ok(UnifyType::Lit(LitType::TyInt)),
-                    (PrimOpr::FScan, []) => Ok(UnifyType::Lit(LitType::TyFloat)),
-                    (PrimOpr::CScan, []) => Ok(UnifyType::Lit(LitType::TyChar)),
+                    (Prim::IScan, []) => Ok(UnifyType::Lit(LitType::TyInt)),
+                    (Prim::FScan, []) => Ok(UnifyType::Lit(LitType::TyFloat)),
+                    (Prim::CScan, []) => Ok(UnifyType::Lit(LitType::TyChar)),
                     (prim, _) => {
                         println!("{:?}", prim);
                         unreachable!();

@@ -1,4 +1,4 @@
-use crate::syntax::ast;
+use crate::syntax::{ast, prim};
 use crate::utils::ident::Ident;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -122,21 +122,22 @@ impl PrimOpr {
     }
 }
 
-impl From<ast::PrimOpr> for PrimOpr {
-    fn from(lit: ast::PrimOpr) -> Self {
+impl From<prim::Prim> for PrimOpr {
+    fn from(lit: prim::Prim) -> Self {
         match lit {
-            ast::PrimOpr::IAdd => PrimOpr::IAdd,
-            ast::PrimOpr::ISub => PrimOpr::ISub,
-            ast::PrimOpr::IMul => PrimOpr::IMul,
-            ast::PrimOpr::ICmpLs => PrimOpr::ICmpLs,
-            ast::PrimOpr::ICmpEq => PrimOpr::ICmpEq,
-            ast::PrimOpr::ICmpGr => PrimOpr::ICmpGr,
-            ast::PrimOpr::IPrint => PrimOpr::IPrint,
-            ast::PrimOpr::IScan => PrimOpr::IScan,
-            ast::PrimOpr::FPrint => PrimOpr::FPrint,
-            ast::PrimOpr::FScan => PrimOpr::FScan,
-            ast::PrimOpr::CPrint => PrimOpr::CPrint,
-            ast::PrimOpr::CScan => PrimOpr::CScan,
+            prim::Prim::IAdd => PrimOpr::IAdd,
+            prim::Prim::ISub => PrimOpr::ISub,
+            prim::Prim::IMul => PrimOpr::IMul,
+            prim::Prim::ICmpLs => PrimOpr::ICmpLs,
+            prim::Prim::ICmpEq => PrimOpr::ICmpEq,
+            prim::Prim::ICmpGr => PrimOpr::ICmpGr,
+            prim::Prim::IPrint => PrimOpr::IPrint,
+            prim::Prim::IScan => PrimOpr::IScan,
+            prim::Prim::FPrint => PrimOpr::FPrint,
+            prim::Prim::FScan => PrimOpr::FScan,
+            prim::Prim::CPrint => PrimOpr::CPrint,
+            prim::Prim::CScan => PrimOpr::CScan,
+            _ => todo!(),
         }
     }
 }

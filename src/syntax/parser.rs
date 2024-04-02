@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use super::lexer::{self, Span, Token, TokenSpan};
+use super::prim::Prim;
 use crate::analyze::diagnostic::Diagnostic;
 use crate::syntax::ast::*;
 use crate::utils::ident::Ident;
@@ -16,6 +17,7 @@ pub struct Parser<'src, 'diag> {
 #[derive(Debug, Clone)]
 enum ParseError {
     LexerError(Span),
+    UnknownPrim(Span),
     FailedToMatch(Token, Token, Span),
     FailedToParse(&'static str, Token, Span),
     NotALeftValue(Span),
@@ -81,6 +83,10 @@ impl<'src, 'diag> Parser<'src, 'diag> {
             ParseError::LexerError(span) => self.diags.push(
                 Diagnostic::error("cannot scan next token!")
                     .line_span(span.clone(), "here is the bad token"),
+            ),
+            ParseError::UnknownPrim(span) => self.diags.push(
+                Diagnostic::error("unknown primitve!")
+                    .line_span(span.clone(), "here is the primitive"),
             ),
             ParseError::FailedToMatch(expect, found, span) => {
                 self.diags
@@ -277,25 +283,15 @@ impl<'src, 'diag> Parser<'src, 'diag> {
         }
     }
 
-    fn parse_prim_opr(&mut self) -> ParseResult<PrimOpr> {
+    fn parse_prim_opr(&mut self) -> ParseResult<Prim> {
         match self.peek_token() {
             Token::PrimOpr => {
                 let s = self.peek_slice();
                 self.next_token()?;
-                match s {
-                    "@iadd" => Ok(PrimOpr::IAdd),
-                    "@isub" => Ok(PrimOpr::ISub),
-                    "@imul" => Ok(PrimOpr::IMul),
-                    "@icmpls" => Ok(PrimOpr::ICmpLs),
-                    "@icmpeq" => Ok(PrimOpr::ICmpEq),
-                    "@icmpgr" => Ok(PrimOpr::ICmpGr),
-                    "@iprint" => Ok(PrimOpr::IPrint),
-                    "@iscan" => Ok(PrimOpr::IScan),
-                    "@fprint" => Ok(PrimOpr::FPrint),
-                    "@fscan" => Ok(PrimOpr::FScan),
-                    "@cprint" => Ok(PrimOpr::CPrint),
-                    "@cscan" => Ok(PrimOpr::CScan),
-                    _ => unreachable!(),
+                if let Ok(res) = s.parse() {
+                    Ok(res)
+                } else {
+                    Err(ParseError::UnknownPrim(self.peek_span().clone()))
                 }
             }
             _tok => Err(ParseError::FailedToParse(
@@ -330,21 +326,21 @@ impl<'src, 'diag> Parser<'src, 'diag> {
     // parse_expr calls parse_expr2, and parse_expr2 calls parse_expr3
     fn parse_expr(&mut self) -> ParseResult<Expr> {
         let mut expr_stack: Vec<Expr> = Vec::new();
-        let mut opr_stack: Vec<PrimOpr> = Vec::new();
+        let mut opr_stack: Vec<Prim> = Vec::new();
 
-        fn get_prior(opr: &PrimOpr) -> usize {
+        fn get_prior(opr: &Prim) -> usize {
             match opr {
-                PrimOpr::IAdd => 10,
-                PrimOpr::ISub => 10,
-                PrimOpr::IMul => 20,
-                PrimOpr::ICmpLs => 5,
-                PrimOpr::ICmpEq => 5,
-                PrimOpr::ICmpGr => 5,
+                Prim::IAdd => 10,
+                Prim::ISub => 10,
+                Prim::IMul => 20,
+                Prim::ICmpLs => 5,
+                Prim::ICmpEq => 5,
+                Prim::ICmpGr => 5,
                 _ => unreachable!(),
             }
         }
 
-        fn squash(expr_stack: &mut Vec<Expr>, opr_stack: &mut Vec<PrimOpr>) {
+        fn squash(expr_stack: &mut Vec<Expr>, opr_stack: &mut Vec<Prim>) {
             let rhs = expr_stack.pop().unwrap();
             let opr = opr_stack.pop().unwrap();
             let lhs = expr_stack.pop().unwrap();
@@ -364,12 +360,12 @@ impl<'src, 'diag> Parser<'src, 'diag> {
             let expr = self.parse_expr2()?;
             expr_stack.push(expr);
             let opr = match self.peek_token() {
-                Token::Plus => PrimOpr::IAdd,
-                Token::Minus => PrimOpr::ISub,
-                Token::Star => PrimOpr::IMul,
-                Token::Less => PrimOpr::ICmpLs,
-                Token::EqualEqual => PrimOpr::ICmpEq,
-                Token::Greater => PrimOpr::ICmpGr,
+                Token::Plus => Prim::IAdd,
+                Token::Minus => Prim::ISub,
+                Token::Star => Prim::IMul,
+                Token::Less => Prim::ICmpLs,
+                Token::EqualEqual => Prim::ICmpEq,
+                Token::Greater => Prim::ICmpGr,
                 _ => {
                     while !opr_stack.is_empty() {
                         squash(&mut expr_stack, &mut opr_stack);
