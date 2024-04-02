@@ -16,29 +16,6 @@ impl fmt::Display for Atom {
     }
 }
 
-impl fmt::Display for PrimOpr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            PrimOpr::IAdd => "@iadd".fmt(f),
-            PrimOpr::ISub => "@isub".fmt(f),
-            PrimOpr::IMul => "@imul".fmt(f),
-            PrimOpr::ICmpLs => "@icmpls".fmt(f),
-            PrimOpr::ICmpEq => "@icmpeq".fmt(f),
-            PrimOpr::ICmpGr => "@icmpgr".fmt(f),
-            PrimOpr::Move => "@move".fmt(f),
-            PrimOpr::Alloc => "@alloc".fmt(f),
-            PrimOpr::Load => "@load".fmt(f),
-            PrimOpr::Store => "@store".fmt(f),
-            PrimOpr::IPrint => "@iprint".fmt(f),
-            PrimOpr::IScan => "@iscan".fmt(f),
-            PrimOpr::FPrint => "@fprint".fmt(f),
-            PrimOpr::FScan => "@fscan".fmt(f),
-            PrimOpr::CPrint => "@cprint".fmt(f),
-            PrimOpr::CScan => "@cscan".fmt(f),
-        }
-    }
-}
-
 impl fmt::Display for IfCond {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

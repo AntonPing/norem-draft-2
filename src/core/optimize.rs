@@ -1,5 +1,5 @@
-use super::cps::{self, Atom, IfCond, Module, PrimOpr};
-use crate::utils::ident::Ident;
+use super::cps::{self, Atom, IfCond, Module};
+use crate::{syntax::prim::Prim, utils::ident::Ident};
 use std::collections::{HashMap, HashSet};
 
 pub struct Optimizer {
@@ -167,19 +167,19 @@ impl Optimizer {
                 assert!(prim.get_arity() == args.len());
                 let args: Vec<Atom> = args.into_iter().map(|arg| self.visit_atom(arg)).collect();
                 match (prim, &args[..]) {
-                    (PrimOpr::IAdd, [Atom::Int(a), Atom::Int(b)]) => {
+                    (Prim::IAdd, [Atom::Int(a), Atom::Int(b)]) => {
                         self.atom_map.insert(bind, Atom::Int(a + b));
                         self.visit_expr(*rest)
                     }
-                    (PrimOpr::ISub, [Atom::Int(a), Atom::Int(b)]) => {
+                    (Prim::ISub, [Atom::Int(a), Atom::Int(b)]) => {
                         self.atom_map.insert(bind, Atom::Int(a - b));
                         self.visit_expr(*rest)
                     }
-                    (PrimOpr::IMul, [Atom::Int(a), Atom::Int(b)]) => {
+                    (Prim::IMul, [Atom::Int(a), Atom::Int(b)]) => {
                         self.atom_map.insert(bind, Atom::Int(a * b));
                         self.visit_expr(*rest)
                     }
-                    (PrimOpr::Move, [atom]) => {
+                    (Prim::Move, [atom]) => {
                         self.atom_map.insert(bind, *atom);
                         self.visit_expr(*rest)
                     }

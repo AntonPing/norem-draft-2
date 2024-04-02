@@ -1,15 +1,13 @@
+use super::cps::{self, Atom, ContDecl};
+use super::pattern::PatnMatrix;
+use crate::core::pattern;
+use crate::syntax::ast::{self, FuncSign, Pattern, Varient};
+use crate::syntax::prim::Prim;
+use crate::utils::ident::Ident;
+use itertools::Itertools;
 use std::collections::HashMap;
 use std::iter;
 use std::ops::Deref;
-
-use itertools::Itertools;
-
-use super::cps::{self, Atom, ContDecl, PrimOpr};
-use super::pattern::PatnMatrix;
-
-use crate::core::pattern;
-use crate::syntax::ast::{self, FuncSign, Pattern, Varient};
-use crate::utils::ident::Ident;
 
 pub struct Translator {
     // cons_map: constructor -> (datatype, varient)
@@ -101,7 +99,7 @@ impl Translator {
                 //  rest
                 cps::Expr::Prim {
                     bind,
-                    prim: PrimOpr::Move,
+                    prim: Prim::Move,
                     args: vec![(*lit).into()],
                     rest: Box::new(rest),
                 }
@@ -112,7 +110,7 @@ impl Translator {
                 //  rest
                 cps::Expr::Prim {
                     bind,
-                    prim: PrimOpr::Move,
+                    prim: Prim::Move,
                     args: vec![Atom::Var(*ident)],
                     rest: Box::new(rest),
                 }
@@ -173,7 +171,7 @@ impl Translator {
                     conts: Vec::new(),
                     body: Box::new(cps::Expr::Prim {
                         bind,
-                        prim: PrimOpr::Move,
+                        prim: Prim::Move,
                         args: vec![Atom::Var(f)],
                         rest: Box::new(rest),
                     }),
@@ -226,7 +224,7 @@ impl Translator {
                                 .collect(),
                             rest: Box::new(cps::Expr::Prim {
                                 bind,
-                                prim: cps::PrimOpr::Move,
+                                prim: Prim::Move,
                                 args: vec![Atom::Var(r)],
                                 rest: Box::new(rest),
                             }),
@@ -267,7 +265,7 @@ impl Translator {
                                 pars: vec![r],
                                 body: cps::Expr::Prim {
                                     bind,
-                                    prim: PrimOpr::Move,
+                                    prim: Prim::Move,
                                     args: vec![Atom::Var(r)],
                                     rest: Box::new(rest),
                                 },
@@ -459,11 +457,11 @@ impl Translator {
                     x,
                     cps::Expr::Prim {
                         bind,
-                        prim: PrimOpr::Alloc,
+                        prim: Prim::Alloc,
                         args: vec![Atom::Int(1)],
                         rest: Box::new(cps::Expr::Prim {
                             bind: wild,
-                            prim: PrimOpr::Store,
+                            prim: Prim::Store,
                             args: vec![Atom::Var(bind), Atom::Int(0), Atom::Var(x)],
                             rest: Box::new(rest),
                         }),
@@ -481,7 +479,7 @@ impl Translator {
                     r,
                     cps::Expr::Prim {
                         bind,
-                        prim: PrimOpr::Load,
+                        prim: Prim::Load,
                         args: vec![Atom::Var(r), Atom::Int(0)],
                         rest: Box::new(rest),
                     },
@@ -515,7 +513,7 @@ impl Translator {
                         let wild = Ident::fresh(&"_");
                         let inner = cps::Expr::Prim {
                             bind: wild,
-                            prim: PrimOpr::Store,
+                            prim: Prim::Store,
                             args: vec![Atom::Var(r), Atom::Int(0), Atom::Var(v)],
                             rest: Box::new(cont),
                         };
@@ -657,7 +655,7 @@ impl Translator {
                 },
                 |rest, (var, obj)| cps::Expr::Prim {
                     bind: var,
-                    prim: PrimOpr::Move,
+                    prim: Prim::Move,
                     args: vec![Atom::Var(obj)],
                     rest: Box::new(rest),
                 },
@@ -698,7 +696,7 @@ impl Translator {
 
                         let brch = hits.iter().fold(brch, |cont, hit| cps::Expr::Prim {
                             bind: *hit,
-                            prim: PrimOpr::Move,
+                            prim: Prim::Move,
                             args: vec![Atom::Var(mat.objs[j])],
                             rest: Box::new(cont),
                         });
@@ -724,7 +722,7 @@ impl Translator {
                             .fold(self.normalize_match(&new_mat, decls), |cont, hit| {
                                 cps::Expr::Prim {
                                     bind: *hit,
-                                    prim: PrimOpr::Move,
+                                    prim: Prim::Move,
                                     args: vec![Atom::Var(mat.objs[j])],
                                     rest: Box::new(cont),
                                 }

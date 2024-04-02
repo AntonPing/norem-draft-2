@@ -1,5 +1,5 @@
 use super::cps::*;
-use crate::core::cps::PrimOpr;
+use crate::syntax::prim::Prim;
 use crate::utils::ident::Ident;
 use std::collections::{HashMap, HashSet};
 
@@ -305,13 +305,13 @@ impl InlinePerform {
                         // this have to be const-folded!
                         Expr::Prim {
                             bind: cont2,
-                            prim: PrimOpr::Move,
+                            prim: Prim::Move,
                             args: vec![Atom::Var(cont)],
                             rest: Box::new(body),
                         },
                         |rest, (par, arg)| Expr::Prim {
                             bind: par,
-                            prim: PrimOpr::Move,
+                            prim: Prim::Move,
                             args: vec![arg],
                             rest: Box::new(rest),
                         },
@@ -333,7 +333,7 @@ impl InlinePerform {
                         .zip(args.into_iter())
                         .fold(body, |rest, (par, arg)| Expr::Prim {
                             bind: par,
-                            prim: PrimOpr::Move,
+                            prim: Prim::Move,
                             args: vec![arg],
                             rest: Box::new(rest),
                         })

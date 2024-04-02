@@ -1,4 +1,5 @@
 use super::cps::*;
+use crate::syntax::prim::Prim;
 use crate::utils::ident::Ident;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while};
@@ -79,22 +80,22 @@ fn char(input: &str) -> IResult<&str, char> {
     Ok((input, s.parse::<char>().unwrap()))
 }
 
-fn prim_opr(input: &str) -> IResult<&str, PrimOpr> {
+fn prim_opr(input: &str) -> IResult<&str, Prim> {
     let (input, _) = skip_space(input)?;
     alt((
-        value(PrimOpr::IAdd, tag("@iadd")),
-        value(PrimOpr::ISub, tag("@isub")),
-        value(PrimOpr::IMul, tag("@imul")),
-        value(PrimOpr::ICmpLs, tag("@icmpls")),
-        value(PrimOpr::ICmpEq, tag("@icmpeq")),
-        value(PrimOpr::ICmpGr, tag("@icmpgr")),
-        value(PrimOpr::IPrint, tag("@iprint")),
-        value(PrimOpr::IScan, tag("@iscan")),
-        value(PrimOpr::FPrint, tag("@fprint")),
-        value(PrimOpr::FScan, tag("@fscan")),
-        value(PrimOpr::CPrint, tag("@cprint")),
-        value(PrimOpr::CScan, tag("@cscan")),
-        value(PrimOpr::Move, tag("@move")),
+        value(Prim::IAdd, tag("@iadd")),
+        value(Prim::ISub, tag("@isub")),
+        value(Prim::IMul, tag("@imul")),
+        value(Prim::ICmpLs, tag("@icmpls")),
+        value(Prim::ICmpEq, tag("@icmpeq")),
+        value(Prim::ICmpGr, tag("@icmpgr")),
+        value(Prim::IPrint, tag("@iprint")),
+        value(Prim::IScan, tag("@iscan")),
+        value(Prim::FPrint, tag("@fprint")),
+        value(Prim::FScan, tag("@fscan")),
+        value(Prim::CPrint, tag("@cprint")),
+        value(Prim::CScan, tag("@cscan")),
+        value(Prim::Move, tag("@move")),
     ))(input)
 }
 

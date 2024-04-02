@@ -1,4 +1,5 @@
-use crate::core::cps::{self, Atom, Expr, FuncDecl, PrimOpr};
+use crate::core::cps::{self, Atom, Expr, FuncDecl};
+use crate::syntax::prim::Prim;
 use crate::utils::ident::Ident;
 use std::collections::{HashMap, HashSet};
 
@@ -147,52 +148,52 @@ impl Lowering {
                 assert_eq!(prim.get_arity(), args.len());
                 let args: Vec<_> = args.iter().map(|arg| self.visit_atom(arg)).collect();
                 match (prim, &args[..]) {
-                    (PrimOpr::Move, [arg]) => {
+                    (Prim::Move, [arg]) => {
                         self.push(Instr::Move(*bind, *arg));
                     }
-                    (PrimOpr::IAdd, [arg1, arg2]) => {
+                    (Prim::IAdd, [arg1, arg2]) => {
                         self.push(Instr::IAdd(*bind, *arg1, *arg2));
                     }
-                    (PrimOpr::ISub, [arg1, arg2]) => {
+                    (Prim::ISub, [arg1, arg2]) => {
                         self.push(Instr::ISub(*bind, *arg1, *arg2));
                     }
-                    (PrimOpr::IMul, [arg1, arg2]) => {
+                    (Prim::IMul, [arg1, arg2]) => {
                         self.push(Instr::IMul(*bind, *arg1, *arg2));
                     }
-                    (PrimOpr::ICmpLs, [arg1, arg2]) => {
+                    (Prim::ICmpLs, [arg1, arg2]) => {
                         self.push(Instr::ICmpLs(*bind, *arg1, *arg2));
                     }
-                    (PrimOpr::ICmpEq, [arg1, arg2]) => {
+                    (Prim::ICmpEq, [arg1, arg2]) => {
                         self.push(Instr::ICmpEq(*bind, *arg1, *arg2));
                     }
-                    (PrimOpr::ICmpGr, [arg1, arg2]) => {
+                    (Prim::ICmpGr, [arg1, arg2]) => {
                         self.push(Instr::ICmpGr(*bind, *arg1, *arg2));
                     }
-                    (PrimOpr::Alloc, [arg]) => {
+                    (Prim::Alloc, [arg]) => {
                         self.push(Instr::Alloc(*bind, *arg));
                     }
-                    (PrimOpr::Load, [arg1, arg2]) => {
+                    (Prim::Load, [arg1, arg2]) => {
                         self.push(Instr::Load(*bind, *arg1, *arg2));
                     }
-                    (PrimOpr::Store, [arg1, arg2, arg3]) => {
+                    (Prim::Store, [arg1, arg2, arg3]) => {
                         self.push(Instr::Store(*arg1, *arg2, *arg3));
                     }
-                    (PrimOpr::IPrint, [arg]) => {
+                    (Prim::IPrint, [arg]) => {
                         self.push(Instr::IPrint(*arg));
                     }
-                    (PrimOpr::IScan, []) => {
+                    (Prim::IScan, []) => {
                         self.push(Instr::IScan(*bind));
                     }
-                    (PrimOpr::FPrint, [arg]) => {
+                    (Prim::FPrint, [arg]) => {
                         self.push(Instr::FPrint(*arg));
                     }
-                    (PrimOpr::FScan, []) => {
+                    (Prim::FScan, []) => {
                         self.push(Instr::FScan(*bind));
                     }
-                    (PrimOpr::CPrint, [arg]) => {
+                    (Prim::CPrint, [arg]) => {
                         self.push(Instr::CPrint(*arg));
                     }
-                    (PrimOpr::CScan, []) => {
+                    (Prim::CScan, []) => {
                         self.push(Instr::CScan(*bind));
                     }
                     (prim, _) => {

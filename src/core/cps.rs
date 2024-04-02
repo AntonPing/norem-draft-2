@@ -1,4 +1,5 @@
-use crate::syntax::{ast, prim};
+use crate::syntax::ast;
+use crate::syntax::prim::Prim;
 use crate::utils::ident::Ident;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -55,94 +56,6 @@ impl From<ast::LitVal> for Atom {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PrimOpr {
-    // arithmetic
-    IAdd,
-    ISub,
-    IMul,
-    // comparision
-    ICmpLs,
-    ICmpEq,
-    ICmpGr,
-    // move
-    Move,
-    // memory operation
-    Alloc,
-    Load,
-    Store,
-    // print and scan
-    IPrint,
-    IScan,
-    FPrint,
-    FScan,
-    CPrint,
-    CScan,
-}
-
-impl PrimOpr {
-    pub fn get_arity(&self) -> usize {
-        match self {
-            PrimOpr::IAdd => 2,
-            PrimOpr::ISub => 2,
-            PrimOpr::IMul => 2,
-            PrimOpr::ICmpLs => 2,
-            PrimOpr::ICmpEq => 2,
-            PrimOpr::ICmpGr => 2,
-            PrimOpr::Move => 1,
-            PrimOpr::Alloc => 1,
-            PrimOpr::Load => 2,
-            PrimOpr::Store => 3,
-            PrimOpr::IPrint => 1,
-            PrimOpr::IScan => 0,
-            PrimOpr::FPrint => 1,
-            PrimOpr::FScan => 0,
-            PrimOpr::CPrint => 1,
-            PrimOpr::CScan => 0,
-        }
-    }
-    pub fn is_pure(&self) -> bool {
-        match self {
-            PrimOpr::IAdd => true,
-            PrimOpr::ISub => true,
-            PrimOpr::IMul => true,
-            PrimOpr::ICmpLs => true,
-            PrimOpr::ICmpEq => true,
-            PrimOpr::ICmpGr => true,
-            PrimOpr::Move => true,
-            PrimOpr::Alloc => false,
-            PrimOpr::Load => false,
-            PrimOpr::Store => false,
-            PrimOpr::IPrint => false,
-            PrimOpr::IScan => false,
-            PrimOpr::FPrint => false,
-            PrimOpr::FScan => false,
-            PrimOpr::CPrint => false,
-            PrimOpr::CScan => false,
-        }
-    }
-}
-
-impl From<prim::Prim> for PrimOpr {
-    fn from(lit: prim::Prim) -> Self {
-        match lit {
-            prim::Prim::IAdd => PrimOpr::IAdd,
-            prim::Prim::ISub => PrimOpr::ISub,
-            prim::Prim::IMul => PrimOpr::IMul,
-            prim::Prim::ICmpLs => PrimOpr::ICmpLs,
-            prim::Prim::ICmpEq => PrimOpr::ICmpEq,
-            prim::Prim::ICmpGr => PrimOpr::ICmpGr,
-            prim::Prim::IPrint => PrimOpr::IPrint,
-            prim::Prim::IScan => PrimOpr::IScan,
-            prim::Prim::FPrint => PrimOpr::FPrint,
-            prim::Prim::FScan => PrimOpr::FScan,
-            prim::Prim::CPrint => PrimOpr::CPrint,
-            prim::Prim::CScan => PrimOpr::CScan,
-            _ => todo!(),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum IfCond {
     BTrue,
     BFalse,
@@ -187,7 +100,7 @@ pub enum Expr {
     },
     Prim {
         bind: Ident,
-        prim: PrimOpr,
+        prim: Prim,
         args: Vec<Atom>,
         rest: Box<Expr>,
     },
