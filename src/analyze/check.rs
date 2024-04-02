@@ -111,6 +111,67 @@ impl<'diag> TypeChecker<'diag> {
         }
     }
 
+    fn get_prim_type(&mut self, prim: &Prim) -> UnifyType {
+        fn op0(res: LitType) -> UnifyType {
+            UnifyType::Func(Vec::new(), Box::new(UnifyType::Lit(res)))
+        }
+        fn op1(par: LitType, res: LitType) -> UnifyType {
+            UnifyType::Func(vec![UnifyType::Lit(par)], Box::new(UnifyType::Lit(res)))
+        }
+        fn op2(pars: LitType, res: LitType) -> UnifyType {
+            UnifyType::Func(
+                vec![UnifyType::Lit(pars), UnifyType::Lit(pars)],
+                Box::new(UnifyType::Lit(res)),
+            )
+        }
+        match prim {
+            Prim::IAdd => op2(LitType::TyInt, LitType::TyInt),
+            Prim::ISub => op2(LitType::TyInt, LitType::TyInt),
+            Prim::IMul => op2(LitType::TyInt, LitType::TyInt),
+            Prim::ICmpLs => op2(LitType::TyInt, LitType::TyBool),
+            Prim::ICmpEq => op2(LitType::TyInt, LitType::TyBool),
+            Prim::ICmpGr => op2(LitType::TyInt, LitType::TyBool),
+            Prim::Move => {
+                let ty = self.fresh();
+                UnifyType::Func(vec![ty.clone()], Box::new(ty))
+            }
+            Prim::Alloc => {
+                let ty = self.fresh();
+                UnifyType::Func(
+                    vec![UnifyType::Lit(LitType::TyInt)],
+                    Box::new(UnifyType::Cons(Ident::fresh(&"Array"), vec![ty])),
+                )
+            }
+            Prim::Load => {
+                let ty = self.fresh();
+                UnifyType::Func(
+                    vec![
+                        UnifyType::Cons(Ident::fresh(&"Array"), vec![ty.clone()]),
+                        UnifyType::Lit(LitType::TyInt),
+                    ],
+                    Box::new(ty),
+                )
+            }
+            Prim::Store => {
+                let ty = self.fresh();
+                UnifyType::Func(
+                    vec![
+                        UnifyType::Cons(Ident::fresh(&"Array"), vec![ty.clone()]),
+                        UnifyType::Lit(LitType::TyInt),
+                        ty,
+                    ],
+                    Box::new(UnifyType::Lit(LitType::TyUnit)),
+                )
+            }
+            Prim::IPrint => op1(LitType::TyInt, LitType::TyUnit),
+            Prim::IScan => op0(LitType::TyInt),
+            Prim::FPrint => op1(LitType::TyFloat, LitType::TyUnit),
+            Prim::FScan => op0(LitType::TyFloat),
+            Prim::CPrint => op1(LitType::TyChar, LitType::TyUnit),
+            Prim::CScan => op0(LitType::TyChar),
+        }
+    }
+
     fn intro_val(&mut self, ident: &Ident, typ: UnifyType) {
         self.val_ctx.insert(
             *ident,
@@ -160,45 +221,17 @@ impl<'diag> TypeChecker<'diag> {
                     };
                     return Ok(res);
                 }
-                let args: Vec<UnifyType> = args
+                let args_ty: Vec<UnifyType> = args
                     .iter_mut()
                     .map(|arg| self.check_expr(arg))
                     .collect::<CheckResult<Vec<_>>>()?;
-                match (prim, &args[..]) {
-                    (Prim::IAdd, [arg1, arg2])
-                    | (Prim::ISub, [arg1, arg2])
-                    | (Prim::IMul, [arg1, arg2]) => {
-                        self.unify(&arg1, &UnifyType::Lit(LitType::TyInt));
-                        self.unify(&arg2, &UnifyType::Lit(LitType::TyInt));
-                        Ok(UnifyType::Lit(LitType::TyInt))
-                    }
-                    (Prim::ICmpLs, [arg1, arg2])
-                    | (Prim::ICmpEq, [arg1, arg2])
-                    | (Prim::ICmpGr, [arg1, arg2]) => {
-                        self.unify(&arg1, &UnifyType::Lit(LitType::TyInt));
-                        self.unify(&arg2, &UnifyType::Lit(LitType::TyInt));
-                        Ok(UnifyType::Lit(LitType::TyBool))
-                    }
-                    (Prim::IPrint, [arg]) => {
-                        self.unify(&arg, &UnifyType::Lit(LitType::TyInt));
-                        Ok(UnifyType::Lit(LitType::TyUnit))
-                    }
-                    (Prim::FPrint, [arg]) => {
-                        self.unify(&arg, &UnifyType::Lit(LitType::TyFloat));
-                        Ok(UnifyType::Lit(LitType::TyUnit))
-                    }
-                    (Prim::CPrint, [arg]) => {
-                        self.unify(&arg, &UnifyType::Lit(LitType::TyChar));
-                        Ok(UnifyType::Lit(LitType::TyUnit))
-                    }
-                    (Prim::IScan, []) => Ok(UnifyType::Lit(LitType::TyInt)),
-                    (Prim::FScan, []) => Ok(UnifyType::Lit(LitType::TyFloat)),
-                    (Prim::CScan, []) => Ok(UnifyType::Lit(LitType::TyChar)),
-                    (prim, _) => {
-                        println!("{:?}", prim);
-                        unreachable!();
-                    }
-                }
+                let prim_ty = self.get_prim_type(prim);
+                let res_ty = self.fresh();
+                self.unify(
+                    &prim_ty,
+                    &UnifyType::Func(args_ty, Box::new(res_ty.clone())),
+                );
+                Ok(res_ty)
             }
             Expr::Cons { cons, flds, span } => {
                 if let Some(cons_ty) = self.cons_ctx.get(cons).cloned() {
