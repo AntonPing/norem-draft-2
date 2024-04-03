@@ -148,9 +148,6 @@ impl Lowering {
                 assert_eq!(prim.get_arity(), args.len());
                 let args: Vec<_> = args.iter().map(|arg| self.visit_atom(arg)).collect();
                 match (prim, &args[..]) {
-                    (Prim::Move, [arg]) => {
-                        self.push(Instr::Move(*bind, *arg));
-                    }
                     (Prim::IAdd, [arg1, arg2]) => {
                         self.push(Instr::IAdd(*bind, *arg1, *arg2));
                     }
@@ -160,11 +157,38 @@ impl Lowering {
                     (Prim::IMul, [arg1, arg2]) => {
                         self.push(Instr::IMul(*bind, *arg1, *arg2));
                     }
+                    (Prim::IDiv, [arg1, arg2]) => {
+                        self.push(Instr::IDiv(*bind, *arg1, *arg2));
+                    }
+                    (Prim::IRem, [arg1, arg2]) => {
+                        self.push(Instr::IRem(*bind, *arg1, *arg2));
+                    }
+                    (Prim::INeg, [arg1]) => {
+                        self.push(Instr::INeg(*bind, *arg1));
+                    }
+                    (Prim::FAdd, [arg1, arg2]) => {
+                        self.push(Instr::FAdd(*bind, *arg1, *arg2));
+                    }
+                    (Prim::FSub, [arg1, arg2]) => {
+                        self.push(Instr::FSub(*bind, *arg1, *arg2));
+                    }
+                    (Prim::FMul, [arg1, arg2]) => {
+                        self.push(Instr::FMul(*bind, *arg1, *arg2));
+                    }
+                    (Prim::FDiv, [arg1, arg2]) => {
+                        self.push(Instr::FDiv(*bind, *arg1, *arg2));
+                    }
+                    (Prim::FNeg, [arg1]) => {
+                        self.push(Instr::FNeg(*bind, *arg1));
+                    }
                     (Prim::ICmp(cmp), [arg1, arg2]) => {
                         self.push(Instr::ICmp(*cmp, *bind, *arg1, *arg2));
                     }
                     (Prim::FCmp(cmp), [arg1, arg2]) => {
                         self.push(Instr::FCmp(*cmp, *bind, *arg1, *arg2));
+                    }
+                    (Prim::Move, [arg]) => {
+                        self.push(Instr::Move(*bind, *arg));
                     }
                     (Prim::Alloc, [arg]) => {
                         self.push(Instr::Alloc(*bind, *arg));
@@ -192,6 +216,9 @@ impl Lowering {
                     }
                     (Prim::CScan, []) => {
                         self.push(Instr::CScan(*bind));
+                    }
+                    (Prim::Assert, [arg]) => {
+                        self.push(Instr::Assert(*arg));
                     }
                     (prim, _) => {
                         println!("{prim}");
