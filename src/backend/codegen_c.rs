@@ -71,7 +71,8 @@ impl CodegenMap {
             | Instr::FPrint(r)
             | Instr::FScan(r)
             | Instr::CPrint(r)
-            | Instr::CScan(r) => {
+            | Instr::CScan(r)
+            | Instr::Assert(r) => {
                 self.visit_var(r);
             }
             Instr::INeg(r1, r2)
@@ -385,6 +386,10 @@ impl Codegen {
             Instr::CScan(r) => {
                 let r = self.map.var_map[r];
                 write!(self.text, "    scanf(\"\\%c\n\", &r{r}.c);\n")
+            }
+            Instr::Assert(r) => {
+                let r = self.map.var_map[r];
+                write!(self.text, "    if !r{r}.b {{ exit(1); }}\n")
             }
         }
     }

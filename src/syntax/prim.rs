@@ -45,6 +45,7 @@ pub enum Prim {
     FScan,
     CPrint,
     CScan,
+    Assert,
 }
 
 impl Prim {
@@ -76,6 +77,7 @@ impl Prim {
             Prim::FScan => 0,
             Prim::CPrint => 1,
             Prim::CScan => 0,
+            Prim::Assert => 1,
         }
     }
 
@@ -107,6 +109,7 @@ impl Prim {
             Prim::FScan => false,
             Prim::CPrint => false,
             Prim::CScan => false,
+            Prim::Assert => false,
         }
     }
 }
@@ -163,6 +166,7 @@ impl fmt::Display for Prim {
             Prim::FScan => "@fscan".fmt(f),
             Prim::CPrint => "@cprint".fmt(f),
             Prim::CScan => "@cscan".fmt(f),
+            Prim::Assert => "@assert".fmt(f),
         }
     }
 }
@@ -207,6 +211,7 @@ impl FromStr for Prim {
             "@fscan" => Ok(Prim::FScan),
             "@cprint" => Ok(Prim::CPrint),
             "@cscan" => Ok(Prim::CScan),
+            "@assert" => Ok(Prim::Assert),
             _ => Err(()),
         }
     }

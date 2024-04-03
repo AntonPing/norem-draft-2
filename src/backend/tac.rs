@@ -34,6 +34,7 @@ pub enum Instr {
     FScan(Ident),
     CPrint(Ident),
     CScan(Ident),
+    Assert(Ident),
 }
 
 #[derive(Clone, Debug)]

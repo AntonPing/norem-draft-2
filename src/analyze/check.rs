@@ -175,6 +175,10 @@ impl<'diag> TypeChecker<'diag> {
             Prim::FScan => op0(LitType::TyFloat),
             Prim::CPrint => op1(LitType::TyChar, LitType::TyUnit),
             Prim::CScan => op0(LitType::TyChar),
+            Prim::Assert => {
+                let ty = self.fresh();
+                UnifyType::Func(vec![UnifyType::Lit(LitType::TyBool)], Box::new(ty))
+            }
         }
     }
 

@@ -254,6 +254,12 @@ impl<'a> Interpreter<'a> {
                         self.local
                             .insert(*r, Value::Char(s.trim().parse().unwrap_or('0')));
                     }
+                    Instr::Assert(r) => {
+                        let value = self.local[r].unwrap_bool();
+                        if !value {
+                            panic!("assert failed!");
+                        }
+                    }
                 }
             }
             match run_blk.last.as_ref().unwrap() {
