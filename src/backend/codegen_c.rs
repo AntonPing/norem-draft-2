@@ -74,7 +74,10 @@ impl CodegenMap {
             | Instr::CScan(r) => {
                 self.visit_var(r);
             }
-            Instr::BNot(r1, r2) | Instr::Move(r1, r2) => {
+            Instr::INeg(r1, r2)
+            | Instr::FNeg(r1, r2)
+            | Instr::BNot(r1, r2)
+            | Instr::Move(r1, r2) => {
                 self.visit_var(r1);
                 self.visit_var(r2);
             }
@@ -255,6 +258,11 @@ impl Codegen {
                 let r3 = self.map.var_map[r3];
                 write!(self.text, "    r{r1}.i = r{r2}.i % r{r3}.i;\n")
             }
+            Instr::INeg(r1, r2) => {
+                let r1 = self.map.var_map[r1];
+                let r2 = self.map.var_map[r2];
+                write!(self.text, "    r{r1}.i = - r{r2}.i;\n")
+            }
             Instr::FAdd(r1, r2, r3) => {
                 let r1 = self.map.var_map[r1];
                 let r2 = self.map.var_map[r2];
@@ -278,6 +286,11 @@ impl Codegen {
                 let r2 = self.map.var_map[r2];
                 let r3 = self.map.var_map[r3];
                 write!(self.text, "    r{r1}.i = r{r2}.f / r{r3}.f;\n")
+            }
+            Instr::FNeg(r1, r2) => {
+                let r1 = self.map.var_map[r1];
+                let r2 = self.map.var_map[r2];
+                write!(self.text, "    r{r1}.f = - r{r2}.f;\n")
             }
             Instr::BAnd(r1, r2, r3) => {
                 let r1 = self.map.var_map[r1];

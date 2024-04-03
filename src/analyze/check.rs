@@ -128,9 +128,11 @@ impl<'diag> TypeChecker<'diag> {
             Prim::IAdd | Prim::ISub | Prim::IMul | Prim::IDiv | Prim::IRem => {
                 op2(LitType::TyInt, LitType::TyInt)
             }
+            Prim::INeg => op1(LitType::TyInt, LitType::TyInt),
             Prim::FAdd | Prim::FSub | Prim::FMul | Prim::FDiv => {
                 op2(LitType::TyFloat, LitType::TyFloat)
             }
+            Prim::FNeg => op1(LitType::TyFloat, LitType::TyFloat),
             Prim::ICmp(_) => op2(LitType::TyInt, LitType::TyBool),
             Prim::FCmp(_) => op2(LitType::TyFloat, LitType::TyBool),
             Prim::BAnd | Prim::BOr => op2(LitType::TyBool, LitType::TyBool),

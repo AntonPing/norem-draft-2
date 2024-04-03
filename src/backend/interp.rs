@@ -143,6 +143,10 @@ impl<'a> Interpreter<'a> {
                         let value = self.local[r2].unwrap_int() % self.local[r3].unwrap_int();
                         self.local.insert(*r1, Value::Int(value));
                     }
+                    Instr::INeg(r1, r2) => {
+                        let value = -self.local[r2].unwrap_int();
+                        self.local.insert(*r1, Value::Int(value));
+                    }
                     Instr::FAdd(r1, r2, r3) => {
                         let value = self.local[r2].unwrap_float() + self.local[r3].unwrap_float();
                         self.local.insert(*r1, Value::Float(value));
@@ -157,6 +161,10 @@ impl<'a> Interpreter<'a> {
                     }
                     Instr::FDiv(r1, r2, r3) => {
                         let value = self.local[r2].unwrap_float() / self.local[r3].unwrap_float();
+                        self.local.insert(*r1, Value::Float(value));
+                    }
+                    Instr::FNeg(r1, r2) => {
+                        let value = -self.local[r2].unwrap_float();
                         self.local.insert(*r1, Value::Float(value));
                     }
                     Instr::BAnd(r1, r2, r3) => {
