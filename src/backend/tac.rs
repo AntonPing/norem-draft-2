@@ -1,5 +1,8 @@
+use itertools::Itertools;
+
 use crate::syntax::prim::Compare;
 use crate::utils::ident::Ident;
+use core::fmt;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
@@ -111,5 +114,42 @@ impl Module {
 
     pub fn push(&mut self, func: Function) {
         self.funcs.insert(func.name, func);
+    }
+}
+
+impl fmt::Display for BasicBlock {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let BasicBlock { name, codes, last } = self;
+        writeln!(f, "{name}:")?;
+        for code in codes {
+            writeln!(f, "    {code:?}")?;
+        }
+        if let Some(last) = last {
+            writeln!(f, "    {last:?}")?;
+        }
+        Ok(())
+    }
+}
+impl fmt::Display for Function {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let Function { name, pars, blks } = self;
+        let pars = pars.iter().format(", ");
+        writeln!(f, "function {name}({pars}) begin")?;
+        for blk in blks {
+            writeln!(f, "{blk}")?;
+        }
+        writeln!(f, "end")?;
+        Ok(())
+    }
+}
+
+impl fmt::Display for Module {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let Module { name, funcs } = self;
+        writeln!(f, "module {name} where")?;
+        for (_, func) in funcs.iter() {
+            writeln!(f, "{func}")?;
+        }
+        Ok(())
     }
 }

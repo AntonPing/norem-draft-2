@@ -532,7 +532,7 @@ end
     let modl = crate::core::closure::ClosConv::run(modl);
     let modl = crate::core::optimize::Optimizer::run(modl);
     let modl = super::lowering::Lowering::run(&modl);
-    println!("{:#?}\n", modl);
+    println!("{}\n", modl);
     let res = super::codegen_c::Codegen::run(&modl);
     println!("{res}");
 }

@@ -45,6 +45,7 @@ where
     let res = compile_with(&src, flag, &mut diags);
     for diag in diags.iter() {
         writeln!(cout, "{}", diag.report(&src, flag.verbose))?;
+        println!("{}", diag.report(&src, flag.verbose));
     }
     let modl = res?;
     match flag.backend {
@@ -58,6 +59,7 @@ where
             let mut eval = backend::interp::Interpreter::new(&modl);
             let res = unsafe { eval.run(*entry, vec![backend::interp::Value::Unit]) };
             writeln!(cout, "{res:?}")?;
+            println!("{res:?}");
             Ok(())
         }
         Backend::C => {
@@ -111,7 +113,7 @@ pub fn compile_with<'src>(
     }
     let modl = backend::lowering::Lowering::run(&modl);
     if flag.debug_mode {
-        println!("lowering:\n{modl:?}");
+        println!("lowering:\n{modl}");
     }
     Ok(modl)
 }
