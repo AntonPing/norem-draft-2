@@ -226,7 +226,7 @@ impl<'a> Interpreter<'a> {
                     }
                     Instr::IPrint(r) => {
                         let value = self.local[r].unwrap_int();
-                        println!("{}", value);
+                        print!("{}", value);
                     }
                     Instr::IScan(r) => {
                         let mut s = String::new();
@@ -236,7 +236,7 @@ impl<'a> Interpreter<'a> {
                     }
                     Instr::FPrint(r) => {
                         let value = self.local[r].unwrap_float();
-                        println!("{}", value);
+                        print!("{}", value);
                     }
                     Instr::FScan(r) => {
                         let mut s = String::new();
@@ -246,7 +246,7 @@ impl<'a> Interpreter<'a> {
                     }
                     Instr::CPrint(r) => {
                         let value = self.local[r].unwrap_char();
-                        println!("{}", value);
+                        print!("{}", value);
                     }
                     Instr::CScan(r) => {
                         let mut s = String::new();

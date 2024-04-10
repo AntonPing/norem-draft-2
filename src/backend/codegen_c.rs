@@ -365,27 +365,27 @@ impl Codegen {
             }
             Instr::IPrint(r) => {
                 let r = self.map.var_map[r];
-                write!(self.text, "    printf(\"\\%ld\n\", r{r}.i);\n")
+                write!(self.text, "    printf(\"\\%ld\", r{r}.i);\n")
             }
             Instr::IScan(r) => {
                 let r = self.map.var_map[r];
-                write!(self.text, "    scanf(\"\\%ld\n\", &r{r}.i);\n")
+                write!(self.text, "    scanf(\"\\%ld\", &r{r}.i);\n")
             }
             Instr::FPrint(r) => {
                 let r = self.map.var_map[r];
-                write!(self.text, "    printf(\"\\%lf\n\", r{r}.f);\n")
+                write!(self.text, "    printf(\"\\%lf\", r{r}.f);\n")
             }
             Instr::FScan(r) => {
                 let r = self.map.var_map[r];
-                write!(self.text, "    scanf(\"\\%lf\n\", &r{r}.f);\n")
+                write!(self.text, "    scanf(\"\\%lf\", &r{r}.f);\n")
             }
             Instr::CPrint(r) => {
                 let r = self.map.var_map[r];
-                write!(self.text, "    printf(\"\\%c\n\", r{r}.c);\n")
+                write!(self.text, "    printf(\"\\%c\", r{r}.c);\n")
             }
             Instr::CScan(r) => {
                 let r = self.map.var_map[r];
-                write!(self.text, "    scanf(\"\\%c\n\", &r{r}.c);\n")
+                write!(self.text, "    scanf(\"\\%c\", &r{r}.c);\n")
             }
             Instr::Assert(r) => {
                 let r = self.map.var_map[r];
