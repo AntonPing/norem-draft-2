@@ -136,6 +136,8 @@ impl Lowering {
                 for decl in conts {
                     self.new_block(decl.cont);
                     self.visit_expr(&decl.body, cont);
+                }
+                for decl in conts {
                     self.cont_pars.remove(&decl.cont);
                 }
             }
@@ -287,6 +289,7 @@ impl Lowering {
             }
             Expr::Jump { cont, args } => {
                 let args: Vec<_> = args.iter().map(|arg| self.visit_atom(arg)).collect();
+                println!("{}", cont);
                 let par_arg: Vec<(Ident, Ident)> = self.cont_pars[cont]
                     .iter()
                     .zip(args.iter())
