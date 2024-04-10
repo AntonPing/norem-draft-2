@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use super::lexer::{self, Span, Token, TokenSpan};
 use super::prim::Prim;
 use crate::analyze::diagnostic::Diagnostic;
@@ -22,10 +20,9 @@ enum ParseError {
     FailedToMatch(Token, Token, Span),
     FailedToParse(&'static str, Token, Span),
     NotALeftValue(Span),
+    NonAtomicUnit,
 }
 type ParseResult<T> = Result<T, ParseError>;
-
-type ParseFunc<'src, 'diag, T> = fn(&mut Parser<'src, 'diag>) -> ParseResult<T>;
 
 impl<'src, 'diag> Parser<'src, 'diag> {
     pub fn new(src: &'src str, diags: &'diag mut Vec<Diagnostic>) -> Parser<'src, 'diag> {
@@ -38,6 +35,7 @@ impl<'src, 'diag> Parser<'src, 'diag> {
         }
     }
 
+    #[allow(dead_code)]
     fn peek_token_span(&self) -> &TokenSpan {
         &self.tokens[self.cursor]
     }
@@ -46,6 +44,7 @@ impl<'src, 'diag> Parser<'src, 'diag> {
         self.tokens[self.cursor].token
     }
 
+    #[allow(dead_code)]
     fn peek_token_nth(&self, n: usize) -> Token {
         if self.cursor + n < self.tokens.len() {
             self.tokens[self.cursor + n].token
@@ -58,6 +57,7 @@ impl<'src, 'diag> Parser<'src, 'diag> {
         &self.tokens[self.cursor].span
     }
 
+    #[allow(dead_code)]
     fn peek_span_nth(&self, n: usize) -> &Span {
         if self.cursor + n < self.tokens.len() {
             &self.tokens[self.cursor + n].span
@@ -104,6 +104,9 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                 Diagnostic::error(format!("left hand side of assignment is not a left value!"))
                     .line_span(span.clone(), "here is the left hand side expression"),
             ),
+            ParseError::NonAtomicUnit => self
+                .diags
+                .push(Diagnostic::error(format!("non-atomic-unit!"))),
         }
     }
 
@@ -150,6 +153,7 @@ impl<'src, 'diag> Parser<'src, 'diag> {
         }
     }
 
+    #[allow(dead_code)]
     fn surround<T, F>(&mut self, left: Token, right: Token, func: F) -> ParseResult<T>
     where
         F: Fn(&mut Parser) -> ParseResult<T>,
@@ -239,6 +243,7 @@ impl<'src, 'diag> Parser<'src, 'diag> {
         }
     }
 
+    #[allow(dead_code)]
     fn parse_ulabel(&mut self) -> ParseResult<InternStr> {
         match self.peek_token() {
             Token::UpperIdent => {
@@ -543,7 +548,55 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                 })
             }
             Token::Begin => self.parse_block(Token::Begin),
-            Token::LParen => self.surround(Token::LParen, Token::RParen, |par| par.parse_expr()),
+            Token::LParen => {
+                // it could be (), (expr) or (expr1, expr2, ..., exprn)
+                let exprs: Vec<(Expr, Span)> =
+                    self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+                        let start = par.start_pos();
+                        let expr = par.parse_expr()?;
+                        let end = par.end_pos();
+                        let span = Span { start, end };
+                        Ok((expr, span))
+                    })?;
+                let end = self.end_pos();
+                match exprs.len() {
+                    0 => {
+                        // ()
+                        let span = Span { start, end };
+                        if end - start == 2 {
+                            Ok(Expr::Lit {
+                                lit: LitVal::Unit,
+                                span,
+                            })
+                        } else {
+                            // something like (,) or (    )
+                            Err(ParseError::NonAtomicUnit)
+                        }
+                    }
+                    1 => {
+                        // (expr)
+                        Ok(exprs.into_iter().nth(0).unwrap().0)
+                    }
+                    _ => {
+                        // (expr1, expr2, ..., exprn)
+                        let span = Span { start, end };
+                        let flds = exprs
+                            .into_iter()
+                            .enumerate()
+                            .map(|(i, (expr, span))| Labeled {
+                                label: InternStr::new(format!("@{}", i)),
+                                data: expr,
+                                span,
+                            })
+                            .collect();
+                        Ok(Expr::Cons {
+                            cons: Ident::dummy(&"Tuple"),
+                            flds,
+                            span,
+                        })
+                    }
+                }
+            }
             _tok => Err(ParseError::FailedToParse(
                 "expression",
                 self.peek_token(),
@@ -898,6 +951,43 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                 let end = self.end_pos();
                 let span = Span { start, end };
                 Ok(Type::Func { pars, res, span })
+            }
+
+            Token::LParen => {
+                // it could be (), (type) or (type1, type2, ..., typen)
+                let typs: Vec<Type> =
+                    self.delimited_list(Token::LParen, Token::Comma, Token::RParen, |par| {
+                        par.parse_type()
+                    })?;
+                let end = self.end_pos();
+                match typs.len() {
+                    0 => {
+                        // ()
+                        let span = Span { start, end };
+                        if end - start == 2 {
+                            Ok(Type::Lit {
+                                lit: LitType::TyUnit,
+                                span,
+                            })
+                        } else {
+                            // something like (,) or (    )
+                            Err(ParseError::NonAtomicUnit)
+                        }
+                    }
+                    1 => {
+                        // (type)
+                        Ok(typs.into_iter().nth(0).unwrap())
+                    }
+                    _ => {
+                        // (type1, type2, ..., typen)
+                        let span = Span { start, end };
+                        Ok(Type::Cons {
+                            cons: Ident::dummy(&"Tuple"),
+                            args: typs,
+                            span,
+                        })
+                    }
+                }
             }
             _tok => Err(ParseError::FailedToParse(
                 "type",
