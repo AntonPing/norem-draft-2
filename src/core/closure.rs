@@ -1,6 +1,6 @@
 use super::cps::*;
 use crate::utils::ident::Ident;
-use std::collections::HashSet;
+use std::{collections::HashSet, mem};
 
 pub struct ClosConv {
     toplevel: Vec<FuncDecl>,
@@ -73,6 +73,9 @@ impl ClosConv {
         match expr {
             Expr::Decls { funcs, conts, body } => {
                 // firstly, scan free variables
+                let mut old_free: HashSet<Ident> = HashSet::new();
+                mem::swap(&mut self.freevar, &mut old_free);
+
                 let funcs: Vec<FuncDecl> = funcs
                     .into_iter()
                     .map(|decl| self.visit_func_decl(decl))
@@ -151,6 +154,11 @@ impl ClosConv {
                 for decl in funcs {
                     self.freevar.remove(&decl.func);
                     self.toplevel.push(decl);
+                }
+
+                // recover saved free variables
+                for old in old_free.iter() {
+                    self.freevar.insert(*old);
                 }
 
                 Expr::Decls {
