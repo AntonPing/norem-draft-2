@@ -216,9 +216,21 @@ impl<'src, 'diag> Parser<'src, 'diag> {
                 Ok(LitVal::Bool(x))
             }
             Token::Char => {
-                let x = self.peek_slice().parse::<char>().unwrap();
-                self.next_token()?;
-                Ok(LitVal::Char(x))
+                let x = self.peek_slice().trim_matches('\'');
+                // transform from 'c' to "c"
+                let x: String = "\""
+                    .chars()
+                    .into_iter()
+                    .chain(x.chars().into_iter())
+                    .chain("\"".chars().into_iter())
+                    .collect();
+                if let Ok(s) = snailquote::unescape(&x) {
+                    assert_eq!(s.len(), 1);
+                    self.next_token()?;
+                    Ok(LitVal::Char(s.chars().nth(0).unwrap()))
+                } else {
+                    Err(ParseError::LexerError(self.peek_span().clone()))
+                }
             }
             _tok => Err(ParseError::FailedToParse(
                 &"literal",

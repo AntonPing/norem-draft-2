@@ -109,14 +109,14 @@ pub enum Token {
     Where,
     #[token("_")]
     Wild,
-    #[regex("[0-9]([0-9])*")]
+    #[regex(r"[0-9]([0-9])*")]
     Int,
-    #[regex("[0-9]([0-9])*\\.[0-9]([0-9])*")]
+    #[regex(r"[0-9]([0-9])*\.[0-9]([0-9])*")]
     Float,
     #[token("true")]
     #[token("false")]
     Bool,
-    #[regex("'.'")]
+    #[regex(r"'(.|\\.)'")]
     Char,
     #[token("Int")]
     TyInt,
@@ -128,11 +128,11 @@ pub enum Token {
     TyChar,
     #[token("Unit")]
     TyUnit,
-    #[regex("[a-z]([a-zA-Z0-9]|_)*")]
+    #[regex(r"[a-z]([a-zA-Z0-9]|_)*")]
     LowerIdent,
-    #[regex("[A-Z]([a-zA-Z0-9]|_)*")]
+    #[regex(r"[A-Z]([a-zA-Z0-9]|_)*")]
     UpperIdent,
-    #[regex("@[a-zA-Z]([a-zA-Z0-9]|_)*")]
+    #[regex(r"@[a-zA-Z]([a-zA-Z0-9]|_)*")]
     PrimOpr,
     #[token("//", line_comment)]
     LineComment,
