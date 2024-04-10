@@ -173,7 +173,8 @@ impl<'a> Interpreter<'a> {
                     Instr::IScan(r) => {
                         let mut s = String::new();
                         std::io::stdin().read_line(&mut s).unwrap();
-                        self.local.insert(*r, Value::Int(s.parse().unwrap()));
+                        self.local
+                            .insert(*r, Value::Int(s.trim().parse().unwrap_or(0)));
                     }
 
                     Instr::FPrint(r) => {
@@ -183,7 +184,8 @@ impl<'a> Interpreter<'a> {
                     Instr::FScan(r) => {
                         let mut s = String::new();
                         std::io::stdin().read_line(&mut s).unwrap();
-                        self.local.insert(*r, Value::Float(s.parse().unwrap()));
+                        self.local
+                            .insert(*r, Value::Float(s.trim().parse().unwrap_or(0.0)));
                     }
                     Instr::CPrint(r) => {
                         let value = self.local[r].unwrap_char();
@@ -192,7 +194,8 @@ impl<'a> Interpreter<'a> {
                     Instr::CScan(r) => {
                         let mut s = String::new();
                         std::io::stdin().read_line(&mut s).unwrap();
-                        self.local.insert(*r, Value::Char(s.parse().unwrap()));
+                        self.local
+                            .insert(*r, Value::Char(s.trim().parse().unwrap_or('0')));
                     }
                 }
             }
