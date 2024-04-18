@@ -156,12 +156,12 @@ impl PatnMatrix {
                 Pattern::Var { ident, .. } => {
                     hits.push(*ident);
                     let new_row = remove_nth(row, j);
-                    Some((new_row, act.clone()))
+                    Some((new_row, *act))
                 }
                 Pattern::Cons { .. } => unreachable!(),
                 Pattern::Wild { .. } => {
                     let new_row = remove_nth(row, j);
-                    Some((new_row, act.clone()))
+                    Some((new_row, *act))
                 }
             })
             .unzip();
@@ -189,14 +189,14 @@ impl PatnMatrix {
                 Pattern::Var { ident, .. } => {
                     hits.push(*ident);
                     let new_row = remove_nth(row, j);
-                    Some((new_row, act.clone()))
+                    Some((new_row, *act))
                 }
                 Pattern::Cons { .. } => {
                     unreachable!()
                 }
                 Pattern::Wild { .. } => {
                     let new_row = remove_nth(row, j);
-                    Some((new_row, act.clone()))
+                    Some((new_row, *act))
                 }
             })
             .unzip();
