@@ -94,11 +94,13 @@ pub fn compile_with<'src>(
     if flag.debug_mode {
         println!("optimize:\n{modl}");
     }
+    /*
     let mark = core::inline::InlineScan::run(&modl);
     let modl = core::inline::InlinePerform::run(modl, mark);
     if flag.debug_mode {
         println!("inline:\n{modl}");
     }
+    */
     let modl = core::optimize::Optimizer::run(modl);
     if flag.debug_mode {
         println!("optimize:\n{modl}");
