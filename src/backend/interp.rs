@@ -117,6 +117,9 @@ impl<'a> Interpreter<'a> {
                     Instr::LitF(r, v) => {
                         self.local.insert(*r, Value::Float(*v));
                     }
+                    Instr::LitB(r, v) => {
+                        self.local.insert(*r, Value::Bool(*v));
+                    }
                     Instr::LitC(r, v) => {
                         self.local.insert(*r, Value::Char(*v));
                     }

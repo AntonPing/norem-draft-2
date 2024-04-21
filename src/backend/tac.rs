@@ -9,6 +9,7 @@ use std::collections::HashMap;
 pub enum Instr {
     LitI(Ident, i64),
     LitF(Ident, f64),
+    LitB(Ident, bool),
     LitC(Ident, char),
     LitA(Ident, Ident),
     IAdd(Ident, Ident, Ident),

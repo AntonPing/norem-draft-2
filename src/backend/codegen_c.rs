@@ -63,6 +63,7 @@ impl CodegenMap {
         match code {
             Instr::LitI(r, _)
             | Instr::LitF(r, _)
+            | Instr::LitB(r, _)
             | Instr::LitC(r, _)
             | Instr::LitA(r, _)
             | Instr::Alloc(r, _)
@@ -219,6 +220,10 @@ impl Codegen {
             Instr::LitF(r, v) => {
                 let r = self.map.var_map[r];
                 write!(self.text, "    r{r}.f = {v}\n")
+            }
+            Instr::LitB(r, v) => {
+                let r = self.map.var_map[r];
+                write!(self.text, "    r{r}.b = {v}\n")
             }
             Instr::LitC(r, v) => {
                 let r = self.map.var_map[r];

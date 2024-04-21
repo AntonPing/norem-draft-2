@@ -88,14 +88,9 @@ impl Lowering {
                 self.push(Instr::LitF(x, *v));
                 x
             }
-            Atom::Bool(true) => {
+            Atom::Bool(v) => {
                 let x = Ident::fresh(&"x");
-                self.push(Instr::LitI(x, 1));
-                x
-            }
-            Atom::Bool(false) => {
-                let x = Ident::fresh(&"x");
-                self.push(Instr::LitI(x, 0));
+                self.push(Instr::LitB(x, *v));
                 x
             }
             Atom::Char(v) => {
